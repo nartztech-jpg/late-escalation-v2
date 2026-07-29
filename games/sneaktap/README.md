@@ -60,6 +60,28 @@ SNEAKTAP · Daily 29 Jul
 ▰▰▰▰▱ grids cleared, best combo ×24
 ```
 
+## Boot sequence
+
+There is nothing to download — one file, no assets, no fonts, no network — so
+the boot screen doesn't fake a progress bar. It reports three real readiness
+steps: `document.fonts.ready`, reading your saved runs out of `localStorage`,
+and building a throwaway first board so the opening round doesn't pay for
+layout. The steps typically complete in under 200ms; a short hold after them
+makes the handover read as deliberate rather than as a flicker, and the start
+screen then rises into place in sequence.
+
+Two properties it must have, both covered by tests:
+
+- **It cannot trap you.** A 2.5s failsafe releases the screen and completes
+  initialisation even if a step hangs forever, and a step that throws is caught
+  and handed over regardless. Verified by stubbing `document.fonts` to hang and
+  to throw.
+- **It shows once per load, never on a restart.** A splash between attempts
+  would defeat the whole "one more go" loop.
+
+The screen is plain markup with inline styles, present before any script runs,
+so it covers the first paint rather than appearing after it.
+
 ## Sound
 
 Off by default, because silence is the entire premise. Turn it on for headphones

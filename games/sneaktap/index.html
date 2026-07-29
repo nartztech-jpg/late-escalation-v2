@@ -685,6 +685,118 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   color: var(--chalk);
 }
 
+/* ---------- boot ----------
+   Sits above everything and is visible from the very first paint without any
+   JS, so the page never shows half-built. It reports real steps, not a fake
+   byte count — there is nothing to download. */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  padding: clamp(20px, 7vw, 40px);
+  background: var(--void);
+}
+
+.boot.gone {
+  animation: boot-out 340ms ease both;
+  pointer-events: none;
+}
+
+@keyframes boot-out {
+  to { opacity: 0; visibility: hidden; }
+}
+
+.boot-mark {
+  font-size: clamp(38px, 14vw, 62px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.84;
+  text-transform: uppercase;
+}
+
+.boot-mark span { display: block; }
+.boot-mark em { font-style: normal; color: var(--signal); }
+
+.boot-bar {
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.boot-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: var(--signal);
+  transition: transform 260ms cubic-bezier(.3, .8, .3, 1);
+}
+
+.boot-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--haze);
+}
+
+.boot-log li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  opacity: 0.45;
+  transition: opacity 200ms ease, color 200ms ease;
+}
+
+.boot-log li::before {
+  content: "·";
+  width: 12px;
+  text-align: center;
+  color: var(--line);
+}
+
+.boot-log li.done {
+  opacity: 1;
+  color: var(--chalk);
+}
+
+.boot-log li.done::before {
+  content: "✓";
+  color: var(--signal);
+}
+
+.boot-hint {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+
+/* Staggered entrance for whatever sheet the boot screen hands over to. */
+.sheet.open.stagger { animation: none; }
+
+.sheet.stagger > * {
+  animation: rise 520ms cubic-bezier(.2, .7, .25, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(15px); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* ---------- the panic screen: a different world entirely ---------- */
 
 .notes {
@@ -809,6 +921,17 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 </style>
 </head>
 <body>
+
+<div class="boot" id="boot">
+  <div class="boot-mark"><span>Sneak</span><em>tap</em></div>
+  <div class="boot-bar"><div class="boot-fill" id="bootFill"></div></div>
+  <ul class="boot-log" id="bootLog">
+    <li id="bootType">type</li>
+    <li id="bootSave">saved runs</li>
+    <li id="bootBoard">board</li>
+  </ul>
+  <div class="boot-hint">silent · one thumb · 30 seconds</div>
+</div>
 
 <div id="app">
   <div class="strip">
@@ -1839,17 +1962,85 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden && (S.live || ui.over.classList.contains("open"))) conceal();
 });
 
-load();
-$("uiBuzz").textContent = save.buzz ? "on" : "off";
-$("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
-$("uiSound").textContent = save.sound ? "on" : "off";
-$("soundBtn").setAttribute("aria-pressed", String(save.sound));
-$("notesDate").textContent = new Date().toLocaleDateString(undefined, {
-  day: "numeric",
-  month: "short",
-});
-refreshMenu();
-paintHud();
+/* ---------- boot ----------
+   There are no assets to fetch, so this reports real readiness steps rather
+   than a fabricated download. It runs once per page load and never on a
+   restart — a splash between attempts would kill the point of the game. */
+
+let booted = false;
+
+function applySettings() {
+  $("uiBuzz").textContent = save.buzz ? "on" : "off";
+  $("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
+  $("uiSound").textContent = save.sound ? "on" : "off";
+  $("soundBtn").setAttribute("aria-pressed", String(save.sound));
+  $("notesDate").textContent = new Date().toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+// Everything the game needs to be playable. Idempotent, so the failsafe can
+// call it without redoing damage if the boot sequence already got there.
+function ensureReady() {
+  if (booted) return;
+  booted = true;
+  load();
+  applySettings();
+  refreshMenu();
+  paintHud();
+}
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+function bootStep(id, fraction) {
+  const li = $(id);
+  if (li) li.classList.add("done");
+  $("bootFill").style.transform = `scaleX(${fraction})`;
+}
+
+function handOver() {
+  const boot = $("boot");
+  if (boot.classList.contains("gone")) return;
+  boot.classList.add("gone");
+  // Number the start sheet's children so they rise in sequence.
+  if (!calm) {
+    [...ui.start.children].forEach((el, i) => el.style.setProperty("--i", String(i)));
+    ui.start.classList.add("stagger");
+    setTimeout(() => ui.start.classList.remove("stagger"), 1200);
+  }
+}
+
+async function boot() {
+  // Never let a loading screen be the thing that traps you.
+  const failsafe = setTimeout(() => { ensureReady(); handOver(); }, 2500);
+
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    bootStep("bootType", 0.34);
+
+    ensureReady();
+    bootStep("bootSave", 0.67);
+
+    // Build a throwaway round so the first real one doesn't pay for layout.
+    newRound();
+    paintHud();
+    await frame();
+    await frame();
+    bootStep("bootBoard", 1);
+  } catch (_) {
+    ensureReady();
+    bootStep("bootBoard", 1);
+  }
+
+  clearTimeout(failsafe);
+  // Steps above usually finish in a few milliseconds; hold briefly so the
+  // handover reads as deliberate rather than as a flicker.
+  await new Promise((r) => setTimeout(r, calm ? 120 : 460));
+  handOver();
+}
+
+boot();
 </script>
 </body>
 </html>
