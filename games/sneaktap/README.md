@@ -26,6 +26,46 @@ you a launcher with no address bar.
 | --- | --- | --- |
 | **Lecture** | 30 seconds on the clock; correct taps add 0.45s, misses cost 2.5s | Playing under a desk |
 | **Pregame** | No clock, three misses | The ten minutes before it starts |
+| **Daily** | Lecture rules, but the tile sequence is seeded from the date | Comparing scores with people who played the same board |
+
+## Daily runs
+
+The daily board is dealt by a `mulberry32` generator seeded from a hash of
+today's date, so everyone playing on the same day gets an identical sequence and
+a retry reproduces it exactly. Every gameplay decision — which tile is odd, and
+whether it's the lighter or darker one — draws from `S.rng`; only cosmetics
+(particle directions) stay unseeded. Retries are unlimited and your best for the
+date is what's kept, so the number is comparable rather than a one-shot verdict.
+Daily bests are scoped to their date and clear at midnight.
+
+## Missing tells you something
+
+A miss doesn't just say "wrong". The odd tile is repainted with an exaggerated
+version of its own gap — five times the real difference — so your eye learns the
+signature it was supposed to catch, and a label at that tile says how fine the
+gap actually was (`gap was 2.3%`). Tap a tile orthogonally next to the right one
+and it says `one tile off` instead. There's also a live shade-gap readout in the
+instrument strip, so you always know how hard the current round really is.
+
+## Sharing
+
+`Share card` renders a 1080×1080 summary on a canvas — score, level, best combo,
+average reaction, and which board sizes the run reached — then hands it to the
+Web Share sheet where that exists, and falls back to downloading the PNG where it
+doesn't. `Copy` puts a compact text version on the clipboard for group chats:
+
+```
+SNEAKTAP · Daily 29 Jul
+6,383 — level 31, 0.42s avg
+▰▰▰▰▱ grids cleared, best combo ×24
+```
+
+## Sound
+
+Off by default, because silence is the entire premise. Turn it on for headphones
+and the feedback is synthesised with WebAudio oscillators — no audio files — with
+hit pitch climbing alongside the combo so a run audibly builds. The audio context
+is constructed inside the toggle's own click handler so browsers don't block it.
 
 ## The hide screen
 
@@ -56,10 +96,11 @@ Simulated across skill levels, runs land around 40 seconds and end at level
 
 - Difference between tiles is **lightness only**, never hue, so the game is
   playable with any form of colour vision deficiency.
-- No audio at all. Feedback is haptic (`navigator.vibrate`, where supported —
-  Android Chrome yes, iOS Safari no) and visual.
+- Silent unless you opt in. Feedback is haptic (`navigator.vibrate`, where
+  supported — Android Chrome yes, iOS Safari no) and visual.
 - Honours `prefers-reduced-motion`: shake and particles drop out, gameplay doesn't.
 - Deliberately dark-only. A light theme would defeat the point of the hide screen —
   which is itself the one bright surface, on purpose.
-- Best scores, top combo, run count and day streak persist in `localStorage`
-  under `sneaktap.v1`.
+- Best scores, top combo, run count, day streak, today's daily result and both
+  toggles persist in `localStorage` under `sneaktap.v1`. Loading merges over
+  defaults, so a save written by an earlier version still opens.

@@ -271,9 +271,16 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   outline-offset: 2px;
 }
 
+/* On a miss the odd tile is repainted with an exaggerated gap, so you learn
+   what you were hunting for rather than just being told you were wrong. */
 .tile.odd-reveal {
-  filter: brightness(1.5);
-  box-shadow: 0 0 0 2px var(--bad) inset;
+  box-shadow: 0 0 0 2px var(--signal) inset, 0 0 26px hsl(var(--hue) 70% 52% / 0.55);
+  animation: reveal 440ms ease;
+}
+
+@keyframes reveal {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.07); }
 }
 
 @keyframes tile-in {
@@ -370,6 +377,13 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 }
 
 .pop.neg { color: var(--bad); }
+
+.pop.tell {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
 
 .spark {
   position: absolute;
@@ -525,6 +539,49 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   color: var(--chalk);
 }
 
+.mode .badge {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--signal);
+  color: #17120A;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  vertical-align: 2px;
+}
+
+.toggles { display: flex; gap: 8px; }
+
+.toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 14px;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--haze);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.toggle .state {
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.toggle[aria-pressed="true"] { border-color: var(--signal); color: var(--chalk); }
+.toggle[aria-pressed="true"] .state { color: var(--signal); }
+.toggle:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -543,6 +600,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--haze);
+  white-space: nowrap;
 }
 
 .stat .v {
@@ -577,6 +635,14 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 }
 
 .row { display: flex; gap: 10px; }
+
+.note {
+  min-height: 15px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--signal);
+}
 
 .btn {
   flex: 1;
@@ -748,10 +814,8 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   <div class="strip">
     <div class="chip"><span class="k">streak</span><span class="v" id="uiStreak">1</span></div>
     <div class="chip"><span class="k">reaction</span><span class="v" id="uiRt">—</span></div>
+    <div class="chip"><span class="k">shade gap</span><span class="v" id="uiGap">—</span></div>
     <div class="chip"><span class="k">best</span><span class="v" id="uiBest">0</span></div>
-    <button class="chip" id="buzzBtn" type="button" aria-pressed="true">
-      <span class="k">buzz</span><span class="v" id="uiBuzz">on</span>
-    </button>
   </div>
 
   <div class="hud">
@@ -819,18 +883,37 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
       </span>
       <span class="pb">best<b id="pbPregame">0</b></span>
     </button>
+
+    <button class="mode" id="modeDaily" type="button">
+      <span class="glyph" aria-hidden="true">☑</span>
+      <span>
+        <span class="name">Daily<span class="badge" id="dailyBadge">new</span></span>
+        <span class="desc" id="dailyDesc">Everyone gets the same tiles today. Retry as much as you like.</span>
+      </span>
+      <span class="pb">today<b id="pbDaily">0</b></span>
+    </button>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="k">day streak</div><div class="v" id="stStreak">1</div></div>
+    <div class="stat"><div class="k">streak</div><div class="v" id="stStreak">1</div></div>
     <div class="stat"><div class="k">runs</div><div class="v" id="stRuns">0</div></div>
-    <div class="stat"><div class="k">top combo</div><div class="v" id="stCombo">0</div></div>
+    <div class="stat"><div class="k">combo</div><div class="v" id="stCombo">0</div></div>
+  </div>
+
+  <div class="toggles">
+    <button class="toggle" id="buzzBtn" type="button" aria-pressed="true">
+      Buzz<span class="state" id="uiBuzz">on</span>
+    </button>
+    <button class="toggle" id="soundBtn" type="button" aria-pressed="false">
+      Sound<span class="state" id="uiSound">off</span>
+    </button>
   </div>
 
   <p class="fineprint">
-    No sound, ever. Buzz feedback where your phone supports it.
-    Hit <kbd>hide</kbd> or press <kbd>Esc</kbd> and it becomes a page of lecture notes —
-    switching apps arms it automatically, so nothing incriminating is on screen when you come back.
+    Sound is off by default — the whole point is that this is silent. Turn it on
+    for headphones. Hit <kbd>hide</kbd> or press <kbd>Esc</kbd> and the board becomes a page of
+    lecture notes; switching apps arms it automatically, so nothing incriminating is
+    on screen when you come back.
   </p>
 </div>
 
@@ -854,6 +937,13 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
     <button class="btn" id="againBtn" type="button">Again</button>
     <button class="btn quiet" id="menuBtn" type="button">Modes</button>
   </div>
+
+  <div class="row">
+    <button class="btn quiet" id="shareBtn" type="button" style="flex:1">Share card</button>
+    <button class="btn quiet" id="copyBtn" type="button">Copy</button>
+  </div>
+
+  <div class="note" id="shareNote" role="status"></div>
 </div>
 
 <!-- the panic screen -->
@@ -923,8 +1013,8 @@ const ui = {
   comboTag: $("uiComboTag"),
   streak: $("uiStreak"),
   rt: $("uiRt"),
+  gap: $("uiGap"),
   best: $("uiBest"),
-  buzz: $("uiBuzz"),
   hint: $("uiHint"),
   fx: $("uiFx"),
   flash: $("uiFlash"),
@@ -942,11 +1032,13 @@ const KEY = "sneaktap.v1";
 
 const save = {
   best: { lecture: 0, pregame: 0 },
+  daily: { date: "", best: 0, runs: 0 },
   topCombo: 0,
   runs: 0,
   streak: 1,
   lastPlayed: "",
   buzz: true,
+  sound: false,
 };
 
 function load() {
@@ -954,7 +1046,10 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return;
     const got = JSON.parse(raw);
-    Object.assign(save, got, { best: { ...save.best, ...(got.best || {}) } });
+    Object.assign(save, got, {
+      best: { ...save.best, ...(got.best || {}) },
+      daily: { ...save.daily, ...(got.daily || {}) },
+    });
   } catch (_) { /* first run, or storage blocked */ }
 }
 
@@ -976,6 +1071,56 @@ function touchStreak() {
   save.streak = save.lastPlayed === yst ? save.streak + 1 : 1;
   save.lastPlayed = now;
   persist();
+}
+
+/* ---------- randomness ----------
+   Daily runs must deal the identical sequence to everyone, so every gameplay
+   decision draws from S.rng rather than Math.random. Cosmetics (sparks) are
+   free to stay unseeded. */
+
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(a) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------- sound ----------
+   Off by default and synthesised on the fly, so the file stays asset-free and
+   the game stays silent unless you ask for it. */
+
+let actx = null;
+
+function tone(freq, dur, type, gain) {
+  if (!save.sound) return;
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch (_) { return; }
+  const osc = actx.createOscillator();
+  const amp = actx.createGain();
+  osc.type = type || "sine";
+  osc.frequency.value = freq;
+  osc.connect(amp);
+  amp.connect(actx.destination);
+  const t = actx.currentTime;
+  amp.gain.setValueAtTime(0.0001, t);
+  amp.gain.linearRampToValueAtTime(gain, t + 0.008);
+  amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
 }
 
 /* ---------- difficulty curve ---------- */
@@ -1005,6 +1150,8 @@ function windowFor(level) {
 
 const S = {
   mode: "lecture",
+  timed: true,
+  rng: Math.random,
   live: false,
   odd: -1,
   level: 0,
@@ -1019,7 +1166,16 @@ const S = {
   resolved: false,
   reactions: [],
   last: 0,
+  avg: 0,
+  record: false,
   hidden: false,
+  maxSide: 2,
+  // The current round's colours, kept so a miss can repaint the odd tile.
+  hue: 205,
+  sat: 44,
+  baseL: 47,
+  oddL: 47,
+  delta: 22,
 };
 
 const START_TIME = 30;
@@ -1054,6 +1210,25 @@ function pop(x, y, text, negative) {
       { transform: "translate(-50%,-230%) scale(1)", opacity: 0 },
     ],
     { duration: 720, easing: "cubic-bezier(.2,.7,.3,1)" }
+  ).onfinish = () => el.remove();
+}
+
+// Like pop, but lingers — it's meant to be read, not just felt.
+function tell(x, y, text) {
+  const el = document.createElement("div");
+  el.className = "pop tell";
+  el.textContent = text;
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+  ui.fx.appendChild(el);
+  el.animate(
+    [
+      { transform: "translate(-50%,-50%) scale(0.9)", opacity: 0 },
+      { transform: "translate(-50%,-50%) scale(1)", opacity: 1, offset: 0.16 },
+      { transform: "translate(-50%,-50%) scale(1)", opacity: 1, offset: 0.7 },
+      { transform: "translate(-50%,-70%) scale(1)", opacity: 0 },
+    ],
+    { duration: 1150, easing: "ease-out" }
   ).onfinish = () => el.remove();
 }
 
@@ -1102,12 +1277,19 @@ function newRound() {
   const hue = 190 + ((S.level * 13) % 110);
   const sat = 44 + (S.level % 5) * 3;
   const baseL = 47;
-  const oddL = baseL + (Math.random() < 0.5 ? -delta : delta);
+  const oddL = baseL + (S.rng() < 0.5 ? -delta : delta);
 
   document.documentElement.style.setProperty("--hue", String(hue));
 
+  S.hue = hue;
+  S.sat = sat;
+  S.baseL = baseL;
+  S.oddL = oddL;
+  S.delta = delta;
+  S.maxSide = Math.max(S.maxSide, n);
+
   const count = n * n;
-  S.odd = Math.floor(Math.random() * count);
+  S.odd = Math.floor(S.rng() * count);
   S.resolved = false;
   S.roundAt = performance.now();
   S.comboMax = windowFor(S.level);
@@ -1148,7 +1330,7 @@ function onTap(e) {
   const y = box.top + box.height / 2;
 
   if (i === S.odd) hit(x, y);
-  else miss(x, y);
+  else miss(x, y, i);
 }
 
 function hit(x, y) {
@@ -1165,27 +1347,42 @@ function hit(x, y) {
   S.level += 1;
   S.topCombo = Math.max(S.topCombo, S.combo);
 
-  if (S.mode === "lecture") S.time = Math.min(START_TIME, S.time + TIME_GAIN);
+  if (S.timed) S.time = Math.min(START_TIME, S.time + TIME_GAIN);
 
   pop(x, y, "+" + gained, false);
   sparks(x, y);
   buzz(8);
+  // Pitch climbs with the combo, so the run audibly builds.
+  tone(520 + Math.min(S.combo, 22) * 26, 0.09, "triangle", 0.05);
 
   const afterGrid = gridFor(S.level);
-  if (afterGrid !== beforeGrid) banner(afterGrid + "×" + afterGrid);
-  else if (S.combo > 0 && S.combo % 10 === 0) banner("×" + S.combo + " streak");
+  if (afterGrid !== beforeGrid) {
+    banner(afterGrid + "×" + afterGrid);
+    tone(700, 0.09, "square", 0.04);
+    setTimeout(() => tone(1050, 0.13, "square", 0.04), 90);
+  } else if (S.combo > 0 && S.combo % 10 === 0) {
+    banner("×" + S.combo + " streak");
+  }
 
   ui.combo.classList.remove("dropped");
   paintHud();
   newRound();
 }
 
-function miss(x, y) {
+// True when two indices sit orthogonally next to each other on an n-wide grid.
+function adjacent(a, b, n) {
+  const ra = Math.floor(a / n), ca = a % n;
+  const rb = Math.floor(b / n), cb = b % n;
+  return (ra === rb && Math.abs(ca - cb) === 1) || (ca === cb && Math.abs(ra - rb) === 1);
+}
+
+function miss(x, y, tapped) {
   S.combo = 0;
   hurt();
   buzz([16, 40, 16]);
+  tone(120, 0.22, "square", 0.06);
 
-  if (S.mode === "lecture") {
+  if (S.timed) {
     S.time -= TIME_LOSS;
     pop(x, y, "−" + TIME_LOSS.toFixed(1) + "s", true);
   } else {
@@ -1193,17 +1390,29 @@ function miss(x, y) {
     pop(x, y, "miss", true);
   }
 
+  // Show what was actually there: repaint the odd tile with an exaggerated
+  // version of its own gap, and say at the tile how fine that gap was.
   const oddTile = ui.grid.children[S.odd];
-  if (oddTile) oddTile.classList.add("odd-reveal");
+  if (oddTile) {
+    const dir = S.oddL >= S.baseL ? 1 : -1;
+    const amped = Math.round(Math.max(8, Math.min(92, S.baseL + dir * Math.max(15, S.delta * 5))));
+    oddTile.style.setProperty("--tile", `hsl(${S.hue} ${S.sat}% ${amped}%)`);
+    oddTile.classList.add("odd-reveal");
+
+    const box = oddTile.getBoundingClientRect();
+    const near = typeof tapped === "number" && adjacent(tapped, S.odd, gridFor(S.level));
+    tell(box.left + box.width / 2, box.top + box.height / 2,
+      near ? "one tile off" : "gap was " + S.delta.toFixed(1) + "%");
+  }
 
   paintHud();
 
-  if ((S.mode === "lecture" && S.time <= 0) || (S.mode === "pregame" && S.lives <= 0)) {
-    end(S.mode === "lecture" ? "time" : "out of lives");
+  if ((S.timed && S.time <= 0) || (!S.timed && S.lives <= 0)) {
+    end(S.timed ? "time" : "out of lives");
     return;
   }
 
-  setTimeout(() => { if (S.live) newRound(); }, calm ? 60 : 260);
+  setTimeout(() => { if (S.live) newRound(); }, calm ? 80 : 520);
 }
 
 /* ---------- hud ---------- */
@@ -1212,15 +1421,22 @@ function fmtRt(ms) {
   return ms ? (ms / 1000).toFixed(2) + "s" : "—";
 }
 
+// Daily bests are scoped to the date they were set, so they clear at midnight.
+function bestFor(mode) {
+  if (mode === "daily") return save.daily.date === today() ? save.daily.best : 0;
+  return save.best[mode] || 0;
+}
+
 let paintedLives = -1;
 
 function paintHud() {
   ui.score.textContent = S.score;
   ui.level.textContent = S.level + 1;
   ui.rt.textContent = fmtRt(S.last);
-  ui.best.textContent = save.best[S.mode] || 0;
+  ui.gap.textContent = S.live ? S.delta.toFixed(1) + "%" : "—";
+  ui.best.textContent = bestFor(S.mode);
 
-  if (S.mode === "lecture") {
+  if (S.timed) {
     const left = Math.max(0, S.time);
     ui.clock.textContent = left >= 10 ? Math.ceil(left) : left.toFixed(1);
     ui.ring.style.strokeDashoffset = String(CIRC * (1 - left / START_TIME));
@@ -1253,7 +1469,7 @@ function tick(now) {
   prev = now;
   if (!S.live || S.hidden) return;
 
-  if (S.mode === "lecture") {
+  if (S.timed) {
     S.time -= dt;
     if (S.time <= 0) {
       S.time = 0;
@@ -1270,6 +1486,7 @@ function tick(now) {
       S.combo = 0;
       ui.combo.classList.add("dropped");
       buzz(24);
+      tone(210, 0.16, "sawtooth", 0.04);
       banner("combo lost");
     }
   }
@@ -1283,6 +1500,10 @@ function begin(mode) {
   touchStreak();
 
   S.mode = mode;
+  S.timed = mode !== "pregame";
+  // Daily deals from a seed derived from the date, so the sequence is identical
+  // for everyone playing today and reproducible on a retry.
+  S.rng = mode === "daily" ? mulberry32(hashStr("sneaktap-" + today())) : Math.random;
   S.live = true;
   S.hidden = false;
   S.score = 0;
@@ -1293,13 +1514,18 @@ function begin(mode) {
   S.time = START_TIME;
   S.reactions = [];
   S.last = 0;
+  S.maxSide = 2;
 
   ui.start.classList.remove("open");
   ui.over.classList.remove("open");
   ui.notes.classList.remove("open");
-  ui.gauge.classList.toggle("lives", mode === "pregame");
+  ui.gauge.classList.toggle("lives", !S.timed);
   ui.combo.classList.remove("dropped");
-  ui.hint.textContent = mode === "lecture" ? "correct taps buy time" : "three misses and it's over";
+  $("shareNote").textContent = "";
+  ui.hint.textContent =
+    mode === "pregame" ? "three misses and it's over"
+    : mode === "daily" ? "today's run · same for everyone"
+    : "correct taps buy time";
 
   newRound();
   paintHud();
@@ -1313,8 +1539,17 @@ function end(reason) {
   S.live = false;
   cancelAnimationFrame(raf);
 
-  const record = S.score > (save.best[S.mode] || 0);
-  save.best[S.mode] = Math.max(save.best[S.mode] || 0, S.score);
+  const prevBest = bestFor(S.mode);
+  const record = S.score > prevBest;
+  S.record = record;
+
+  if (S.mode === "daily") {
+    if (save.daily.date !== today()) save.daily = { date: today(), best: 0, runs: 0 };
+    save.daily.best = Math.max(save.daily.best, S.score);
+    save.daily.runs += 1;
+  } else {
+    save.best[S.mode] = Math.max(save.best[S.mode] || 0, S.score);
+  }
   save.topCombo = Math.max(save.topCombo, S.topCombo);
   save.runs += 1;
   persist();
@@ -1322,19 +1557,188 @@ function end(reason) {
   const avg = S.reactions.length
     ? S.reactions.reduce((a, b) => a + b, 0) / S.reactions.length
     : 0;
+  S.avg = avg;
 
-  $("overReason").textContent = reason;
+  $("overReason").textContent = S.mode === "daily" ? "daily · " + reason : reason;
   $("overScore").textContent = S.score;
   $("overLevel").textContent = S.level + 1;
   $("overCombo").textContent = S.topCombo;
   $("overRt").textContent = fmtRt(avg);
   $("overFlag").innerHTML = record ? '<span class="pb-flag">new best</span>' : "";
   $("overNote").textContent = record
-    ? "That is your best run yet. Quit while the lecturer still thinks you're taking notes."
-    : "Best is " + save.best[S.mode] + ". You were " + (save.best[S.mode] - S.score) + " short.";
+    ? (S.mode === "daily"
+        ? "Best on today's run so far. The tiles reset at midnight."
+        : "That is your best run yet. Quit while the lecturer still thinks you're taking notes.")
+    : "Best is " + prevBest + ". You were " + (prevBest - S.score) + " short.";
+  $("shareNote").textContent = "";
 
   ui.over.classList.add("open");
   buzz([30, 60, 30, 60, 30]);
+  [0, 130, 260].forEach((d, i) => setTimeout(() => tone(420 - i * 90, 0.2, "sine", 0.05), d));
+}
+
+/* ---------- sharing ---------- */
+
+function ladder() {
+  return [2, 3, 4, 5, 6].map((s) => (s <= S.maxSide ? "▰" : "▱")).join("");
+}
+
+function modeLabel() {
+  return S.mode === "daily"
+    ? "Daily " + new Date().toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : S.mode[0].toUpperCase() + S.mode.slice(1);
+}
+
+function shareText() {
+  return [
+    "SNEAKTAP · " + modeLabel(),
+    S.score.toLocaleString() + " — level " + (S.level + 1) + ", " + fmtRt(S.avg || 0) + " avg",
+    ladder() + " grids cleared, best combo ×" + S.topCombo,
+  ].join("\n");
+}
+
+function note(text) {
+  $("shareNote").textContent = text;
+}
+
+function drawCard() {
+  const c = document.createElement("canvas");
+  c.width = 1080;
+  c.height = 1080;
+  const g = c.getContext("2d");
+  const hue = S.hue;
+
+  g.fillStyle = "#0A0B0D";
+  g.fillRect(0, 0, 1080, 1080);
+  const glow = g.createRadialGradient(540, 300, 0, 540, 300, 760);
+  glow.addColorStop(0, `hsla(${hue}, 62%, 26%, 0.55)`);
+  glow.addColorStop(1, "rgba(10,11,13,0)");
+  g.fillStyle = glow;
+  g.fillRect(0, 0, 1080, 1080);
+
+  const sans = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+  const mono = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+  g.fillStyle = "#FFAE3B";
+  g.font = `800 30px ${sans}`;
+  g.letterSpacing = "8px";
+  g.fillText("SNEAKTAP", 90, 150);
+
+  g.fillStyle = "#8A93A6";
+  g.font = `600 30px ${sans}`;
+  g.fillText(modeLabel().toUpperCase(), 90, 205);
+
+  g.letterSpacing = "0px";
+  g.fillStyle = "#EDF0F5";
+  g.font = `700 250px ${mono}`;
+  g.fillText(String(S.score), 84, 470);
+
+  if (S.record) {
+    const w = g.measureText(String(S.score)).width;
+    const x = Math.min(84 + w + 34, 830);
+    g.fillStyle = "#FFAE3B";
+    if (g.roundRect) {
+      g.beginPath();
+      g.roundRect(x, 300, 168, 52, 26);
+      g.fill();
+    } else {
+      g.fillRect(x, 300, 168, 52); // older Safari has no roundRect
+    }
+    g.fillStyle = "#17120A";
+    g.font = `800 21px ${sans}`;
+    g.letterSpacing = "3px";
+    g.fillText("NEW BEST", x + 24, 334);
+    g.letterSpacing = "0px";
+  }
+
+  // Stat row
+  const stats = [
+    ["LEVEL", String(S.level + 1)],
+    ["BEST COMBO", "×" + S.topCombo],
+    ["AVG REACT", fmtRt(S.avg || 0)],
+  ];
+  stats.forEach(([k, v], i) => {
+    const x = 90 + i * 310;
+    g.fillStyle = "#14161B";
+    g.fillRect(x, 560, 280, 150);
+    g.strokeStyle = "#23272F";
+    g.lineWidth = 2;
+    g.strokeRect(x, 560, 280, 150);
+    g.fillStyle = "#8A93A6";
+    g.font = `700 20px ${sans}`;
+    g.fillText(k, x + 26, 610);
+    g.fillStyle = "#EDF0F5";
+    g.font = `700 54px ${mono}`;
+    g.fillText(v, x + 26, 680);
+  });
+
+  // Grid ladder: which board sizes the run actually reached.
+  g.fillStyle = "#8A93A6";
+  g.font = `700 20px ${sans}`;
+  g.fillText("GRIDS CLEARED", 90, 810);
+  [2, 3, 4, 5, 6].forEach((s, i) => {
+    const x = 90 + i * 106;
+    const on = s <= S.maxSide;
+    g.fillStyle = on ? `hsl(${hue}, 50%, 47%)` : "#14161B";
+    g.fillRect(x, 838, 86, 86);
+    g.strokeStyle = on ? `hsl(${hue}, 55%, 62%)` : "#23272F";
+    g.lineWidth = 2;
+    g.strokeRect(x, 838, 86, 86);
+    g.fillStyle = on ? "#EDF0F5" : "#3A3F49";
+    g.font = `700 34px ${mono}`;
+    g.textAlign = "center";
+    g.fillText(s + "×" + s, x + 43, 895);
+    g.textAlign = "left";
+  });
+
+  g.fillStyle = "#8A93A6";
+  g.font = `500 26px ${sans}`;
+  g.fillText("Find the odd shade. Hide it in one tap.", 90, 1010);
+
+  return c;
+}
+
+async function shareCard() {
+  note("building card…");
+  let blob;
+  try {
+    const canvas = drawCard();
+    blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+    if (!blob) throw new Error("no blob");
+  } catch (_) {
+    note("couldn't draw the card — use Copy instead");
+    return;
+  }
+
+  const file = new File([blob], "sneaktap.png", { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text: shareText() });
+      note("shared");
+      return;
+    } catch (err) {
+      if (err && err.name === "AbortError") { note(""); return; }
+      // Sharing unavailable in practice — fall through to a download.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "sneaktap.png";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  note("saved sneaktap.png");
+}
+
+async function copyResult() {
+  const text = shareText();
+  try {
+    await navigator.clipboard.writeText(text);
+    note("copied to clipboard");
+  } catch (_) {
+    note("clipboard blocked — long-press the score to select it");
+  }
 }
 
 function toMenu() {
@@ -1349,11 +1753,19 @@ function toMenu() {
 function refreshMenu() {
   $("pbLecture").textContent = save.best.lecture || 0;
   $("pbPregame").textContent = save.best.pregame || 0;
+  $("pbDaily").textContent = bestFor("daily");
   $("stStreak").textContent = save.streak;
   $("stRuns").textContent = save.runs;
   $("stCombo").textContent = save.topCombo;
   ui.streak.textContent = save.streak;
-  ui.best.textContent = save.best[S.mode] || 0;
+  ui.best.textContent = bestFor(S.mode);
+
+  const played = save.daily.date === today();
+  $("dailyBadge").textContent = played ? "played" : "new";
+  $("dailyDesc").textContent = played
+    ? "Same tiles for everyone today. " + save.daily.runs +
+      (save.daily.runs === 1 ? " try" : " tries") + " so far — beat your own mark."
+    : "Everyone gets the same tiles today. Retry as much as you like.";
 }
 
 /* ---------- panic hide ---------- */
@@ -1389,17 +1801,29 @@ ui.grid.addEventListener("keydown", (e) => {
 
 $("modeLecture").addEventListener("click", () => begin("lecture"));
 $("modePregame").addEventListener("click", () => begin("pregame"));
+$("modeDaily").addEventListener("click", () => begin("daily"));
 $("againBtn").addEventListener("click", () => begin(S.mode));
 $("menuBtn").addEventListener("click", toMenu);
 $("hideBtn").addEventListener("click", conceal);
 $("folioBtn").addEventListener("click", reveal);
+$("shareBtn").addEventListener("click", shareCard);
+$("copyBtn").addEventListener("click", copyResult);
 
 $("buzzBtn").addEventListener("click", (e) => {
   save.buzz = !save.buzz;
   persist();
-  ui.buzz.textContent = save.buzz ? "on" : "off";
+  $("uiBuzz").textContent = save.buzz ? "on" : "off";
   e.currentTarget.setAttribute("aria-pressed", String(save.buzz));
   buzz(12);
+});
+
+$("soundBtn").addEventListener("click", (e) => {
+  save.sound = !save.sound;
+  persist();
+  $("uiSound").textContent = save.sound ? "on" : "off";
+  e.currentTarget.setAttribute("aria-pressed", String(save.sound));
+  // Built on this gesture, so the audio context starts unblocked.
+  if (save.sound) tone(760, 0.1, "triangle", 0.05);
 });
 
 document.addEventListener("keydown", (e) => {
@@ -1416,8 +1840,10 @@ document.addEventListener("visibilitychange", () => {
 });
 
 load();
-ui.buzz.textContent = save.buzz ? "on" : "off";
+$("uiBuzz").textContent = save.buzz ? "on" : "off";
 $("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
+$("uiSound").textContent = save.sound ? "on" : "off";
+$("soundBtn").setAttribute("aria-pressed", String(save.sound));
 $("notesDate").textContent = new Date().toLocaleDateString(undefined, {
   day: "numeric",
   month: "short",
