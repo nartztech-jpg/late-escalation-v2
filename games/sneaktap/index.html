@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0A0B0D">
 <meta name="description" content="SNEAKTAP — a silent 30-second odd-one-out game you can hide in one tap. Built for lecture halls.">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SNEAKTAP">
+<meta property="og:description" content="One tile is a slightly different shade. Tap it. Hides in one tap when someone looks over.">
+<meta name="twitter:card" content="summary">
+<!-- Installing is optional; index.html plays fine on its own, and these
+     resolve to nothing harmful when the file is opened directly. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sneaktap">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <title>SNEAKTAP</title>
 <style>
 /* ---------------------------------------------------------------------------
@@ -39,6 +53,7 @@
 html, body {
   height: 100%;
   margin: 0;
+  overscroll-behavior: none;
 }
 
 body {
@@ -145,17 +160,17 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: clamp(26px, 8vw, 40px);
+  font-size: clamp(26px, 8vmin, 40px);
   line-height: 0.9;
   letter-spacing: -0.03em;
 }
 
 .readout.right { text-align: right; }
-.readout.right .num { font-size: clamp(20px, 5.5vw, 28px); color: var(--haze); }
+.readout.right .num { font-size: clamp(20px, 5.5vmin, 28px); color: var(--haze); }
 
 .gauge {
   position: relative;
-  width: clamp(64px, 19vw, 84px);
+  width: clamp(64px, 19vmin, 84px);
   aspect-ratio: 1;
 }
 
@@ -191,7 +206,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-size: clamp(15px, 4.4vw, 19px);
+  font-size: clamp(15px, 4.4vmin, 19px);
   letter-spacing: -0.02em;
 }
 
@@ -295,7 +310,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   translate: -50% -50%;
   pointer-events: none;
   font-weight: 800;
-  font-size: clamp(24px, 8vw, 42px);
+  font-size: clamp(24px, 8vmin, 42px);
   letter-spacing: 0.02em;
   text-transform: uppercase;
   text-align: center;
@@ -354,6 +369,46 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 
 .hide-btn:hover { color: var(--chalk); border-color: var(--haze); }
 .hide-btn span { font-size: 14px; line-height: 1; }
+
+/* ---------- landscape ----------
+   Stacked vertically, a short viewport starves the board — it collapsed to the
+   140px floor. Side by side, the board gets the full height instead. */
+
+@media (orientation: landscape) and (max-height: 560px) {
+  #app {
+    display: grid;
+    /* The board column is sized from the viewport, not from its contents. An
+       auto column would make .grid's own 100% circular, and therefore zero. */
+    grid-template-columns: minmax(0, 1fr) min(48vw, 100dvh - 56px);
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "strip board"
+      "hud   board"
+      "combo board"
+      "foot  board";
+    align-content: start;
+    gap: 9px 16px;
+  }
+
+  .strip { grid-area: strip; }
+  .hud   { grid-area: hud; }
+  .combo { grid-area: combo; }
+  .board { grid-area: board; }
+
+  .foot {
+    grid-area: foot;
+    align-self: end;
+  }
+
+  /* The column above is already the right size, so just fill it. Note that a
+     plain subtraction is required in these expressions — multiplying
+     var(--pad) makes a nested clamp() the parser rejects, which silently
+     drops the whole declaration. */
+  .grid { width: 100%; }
+
+  .sheet { justify-content: flex-start; }
+  .wordmark { font-size: clamp(34px, 11vmin, 54px); }
+}
 
 /* ---------- fx layer ---------- */
 
@@ -454,7 +509,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 .wordmark {
   margin: 6px 0 0;
   /* Two stacked lines, so the mark can run large without clipping on narrow phones. */
-  font-size: clamp(46px, 19vw, 88px);
+  font-size: clamp(46px, 19vmin, 88px);
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 0.82;
@@ -471,7 +526,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 .tagline {
   margin: 12px 0 0;
   max-width: 34ch;
-  font-size: clamp(14px, 4vw, 16px);
+  font-size: clamp(14px, 4vmin, 16px);
   line-height: 1.5;
   color: var(--haze);
   text-wrap: pretty;
@@ -607,7 +662,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   margin-top: 5px;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: clamp(19px, 6vw, 25px);
+  font-size: clamp(19px, 6vmin, 25px);
   font-weight: 700;
   line-height: 1;
 }
@@ -615,7 +670,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 .final {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: clamp(60px, 22vw, 104px);
+  font-size: clamp(60px, 22vmin, 104px);
   font-weight: 700;
   letter-spacing: -0.05em;
   line-height: 0.84;
@@ -676,6 +731,14 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   text-wrap: pretty;
 }
 
+.ver {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--haze);
+  opacity: 0.65;
+}
+
 .fineprint kbd {
   font-family: var(--mono);
   font-size: 10px;
@@ -712,7 +775,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 }
 
 .boot-mark {
-  font-size: clamp(38px, 14vw, 62px);
+  font-size: clamp(38px, 14vmin, 62px);
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 0.84;
@@ -933,6 +996,29 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   <div class="boot-hint">silent · one thumb · 30 seconds</div>
 </div>
 
+<!-- Only JS clears the boot screen, so without it that screen would sit there
+     forever pretending to load. Say what's wrong instead. -->
+<noscript>
+  <style>
+    #boot > *:not(.boot-mark) { display: none; }
+    .nojs {
+      position: fixed;
+      inset: auto 0 0;
+      z-index: 31;
+      padding: 0 clamp(20px, 7vw, 40px) 18vh;
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--haze);
+    }
+    .nojs b { color: var(--chalk); }
+  </style>
+  <div class="nojs">
+    <b>This game needs JavaScript.</b><br>
+    Turn it on and reload — there's nothing to download, so it'll start straight away.
+  </div>
+</noscript>
+
 <div id="app">
   <div class="strip">
     <div class="chip"><span class="k">streak</span><span class="v" id="uiStreak">1</span></div>
@@ -1038,6 +1124,8 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
     lecture notes; switching apps arms it automatically, so nothing incriminating is
     on screen when you come back.
   </p>
+
+  <div class="ver" id="ver"></div>
 </div>
 
 <!-- game over -->
@@ -1544,6 +1632,26 @@ function fmtRt(ms) {
   return ms ? (ms / 1000).toFixed(2) + "s" : "—";
 }
 
+// Scores reach five figures; group them everywhere they're shown.
+function fmt(n) {
+  return Number(n).toLocaleString();
+}
+
+// Anything under an open overlay must be unreachable by keyboard and AT, not
+// merely hidden behind it.
+function updateInert() {
+  const bootUp = !$("boot").classList.contains("gone");
+  const notesOpen = ui.notes.classList.contains("open");
+  const sheetOpen = ui.start.classList.contains("open") || ui.over.classList.contains("open");
+  ui.app.inert = bootUp || notesOpen || sheetOpen;
+  ui.start.inert = bootUp || notesOpen;
+  ui.over.inert = bootUp || notesOpen;
+}
+
+function focusFirst(el) {
+  if (el) el.focus({ preventScroll: true });
+}
+
 // Daily bests are scoped to the date they were set, so they clear at midnight.
 function bestFor(mode) {
   if (mode === "daily") return save.daily.date === today() ? save.daily.best : 0;
@@ -1553,11 +1661,11 @@ function bestFor(mode) {
 let paintedLives = -1;
 
 function paintHud() {
-  ui.score.textContent = S.score;
+  ui.score.textContent = fmt(S.score);
   ui.level.textContent = S.level + 1;
   ui.rt.textContent = fmtRt(S.last);
   ui.gap.textContent = S.live ? S.delta.toFixed(1) + "%" : "—";
-  ui.best.textContent = bestFor(S.mode);
+  ui.best.textContent = fmt(bestFor(S.mode));
 
   if (S.timed) {
     const left = Math.max(0, S.time);
@@ -1644,7 +1752,12 @@ function begin(mode) {
   ui.notes.classList.remove("open");
   ui.gauge.classList.toggle("lives", !S.timed);
   ui.combo.classList.remove("dropped");
+  // The banner fades out but keeps its text, which would otherwise linger in
+  // the accessibility tree from the previous run.
+  ui.banner.textContent = "";
+  ui.banner.classList.remove("show");
   $("shareNote").textContent = "";
+  updateInert();
   ui.hint.textContent =
     mode === "pregame" ? "three misses and it's over"
     : mode === "daily" ? "today's run · same for everyone"
@@ -1652,6 +1765,9 @@ function begin(mode) {
 
   newRound();
   paintHud();
+
+  // Nobody has explained the rules to a first-time player yet.
+  if (save.runs === 0) banner("tap the odd one");
 
   prev = performance.now();
   cancelAnimationFrame(raf);
@@ -1683,19 +1799,21 @@ function end(reason) {
   S.avg = avg;
 
   $("overReason").textContent = S.mode === "daily" ? "daily · " + reason : reason;
-  $("overScore").textContent = S.score;
+  $("overScore").textContent = fmt(S.score);
   $("overLevel").textContent = S.level + 1;
-  $("overCombo").textContent = S.topCombo;
+  $("overCombo").textContent = fmt(S.topCombo);
   $("overRt").textContent = fmtRt(avg);
   $("overFlag").innerHTML = record ? '<span class="pb-flag">new best</span>' : "";
   $("overNote").textContent = record
     ? (S.mode === "daily"
         ? "Best on today's run so far. The tiles reset at midnight."
         : "That is your best run yet. Quit while the lecturer still thinks you're taking notes.")
-    : "Best is " + prevBest + ". You were " + (prevBest - S.score) + " short.";
+    : "Best is " + fmt(prevBest) + ". You were " + fmt(prevBest - S.score) + " short.";
   $("shareNote").textContent = "";
 
   ui.over.classList.add("open");
+  updateInert();
+  focusFirst($("againBtn"));
   buzz([30, 60, 30, 60, 30]);
   [0, 130, 260].forEach((d, i) => setTimeout(() => tone(420 - i * 90, 0.2, "sine", 0.05), d));
 }
@@ -1754,10 +1872,10 @@ function drawCard() {
   g.letterSpacing = "0px";
   g.fillStyle = "#EDF0F5";
   g.font = `700 250px ${mono}`;
-  g.fillText(String(S.score), 84, 470);
+  g.fillText(fmt(S.score), 84, 470);
 
   if (S.record) {
-    const w = g.measureText(String(S.score)).width;
+    const w = g.measureText(fmt(S.score)).width;
     const x = Math.min(84 + w + 34, 830);
     g.fillStyle = "#FFAE3B";
     if (g.roundRect) {
@@ -1871,17 +1989,19 @@ function toMenu() {
   ui.notes.classList.remove("open");
   refreshMenu();
   ui.start.classList.add("open");
+  updateInert();
+  focusFirst($("modeLecture"));
 }
 
 function refreshMenu() {
-  $("pbLecture").textContent = save.best.lecture || 0;
-  $("pbPregame").textContent = save.best.pregame || 0;
-  $("pbDaily").textContent = bestFor("daily");
+  $("pbLecture").textContent = fmt(save.best.lecture || 0);
+  $("pbPregame").textContent = fmt(save.best.pregame || 0);
+  $("pbDaily").textContent = fmt(bestFor("daily"));
   $("stStreak").textContent = save.streak;
-  $("stRuns").textContent = save.runs;
-  $("stCombo").textContent = save.topCombo;
+  $("stRuns").textContent = fmt(save.runs);
+  $("stCombo").textContent = fmt(save.topCombo);
   ui.streak.textContent = save.streak;
-  ui.best.textContent = bestFor(S.mode);
+  ui.best.textContent = fmt(bestFor(S.mode));
 
   const played = save.daily.date === today();
   $("dailyBadge").textContent = played ? "played" : "new";
@@ -1902,10 +2022,14 @@ function conceal() {
   everHidden = true;
   ui.notes.classList.add("open");
   ui.notes.scrollTop = 0;
+  updateInert();
+  // The resume control is the first thing a keyboard user should reach.
+  focusFirst($("folioBtn"));
 }
 
 function reveal() {
   ui.notes.classList.remove("open");
+  updateInert();
   S.hidden = false;
   if (S.live) {
     // Don't punish the player for the seconds spent hiding.
@@ -1918,8 +2042,35 @@ function reveal() {
 /* ---------- wiring ---------- */
 
 ui.grid.addEventListener("pointerdown", onTap);
+
+// Keyboard play. Tabbing through 36 buttons is not play, so arrows walk the
+// grid and Enter or Space commits.
+const ARROWS = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] };
+
 ui.grid.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") onTap(e);
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault(); // Space would otherwise scroll.
+    onTap(e);
+    return;
+  }
+
+  const step = ARROWS[e.key];
+  if (!step) return;
+  e.preventDefault();
+
+  const tiles = [...ui.grid.children];
+  if (!tiles.length) return;
+  const n = gridFor(S.level);
+  const cur = tiles.indexOf(document.activeElement);
+  if (cur < 0) {
+    focusFirst(tiles[0]);
+    return;
+  }
+
+  const row = Math.floor(cur / n) + step[0];
+  const col = (cur % n) + step[1];
+  if (row < 0 || row >= n || col < 0 || col >= n) return; // stop at the edge
+  focusFirst(tiles[row * n + col]);
 });
 
 $("modeLecture").addEventListener("click", () => begin("lecture"));
@@ -1969,7 +2120,10 @@ document.addEventListener("visibilitychange", () => {
 
 let booted = false;
 
+const VERSION = "1.0.0";
+
 function applySettings() {
+  $("ver").textContent = "v" + VERSION;
   $("uiBuzz").textContent = save.buzz ? "on" : "off";
   $("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
   $("uiSound").textContent = save.sound ? "on" : "off";
@@ -1989,6 +2143,7 @@ function ensureReady() {
   applySettings();
   refreshMenu();
   paintHud();
+  updateInert();
 }
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -2003,6 +2158,7 @@ function handOver() {
   const boot = $("boot");
   if (boot.classList.contains("gone")) return;
   boot.classList.add("gone");
+  updateInert();
   // Number the start sheet's children so they rise in sequence.
   if (!calm) {
     [...ui.start.children].forEach((el, i) => el.style.setProperty("--i", String(i)));
@@ -2041,6 +2197,15 @@ async function boot() {
 }
 
 boot();
+
+// Offline play, only where it can actually work: sw.js sits next to this file
+// when the folder is served, and is simply absent when index.html is opened
+// on its own or embedded elsewhere. Failure here is never worth surfacing.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  fetch("sw.js", { method: "HEAD" })
+    .then((res) => { if (res.ok) return navigator.serviceWorker.register("sw.js"); })
+    .catch(() => {});
+}
 </script>
 </body>
 </html>

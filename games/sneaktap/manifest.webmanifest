@@ -1,0 +1,26 @@
+{
+  "name": "SNEAKTAP",
+  "short_name": "Sneaktap",
+  "description": "A silent one-thumbed odd-one-out game for the gaps in a teaching day.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A0B0D",
+  "theme_color": "#0A0B0D",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

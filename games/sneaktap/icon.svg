@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SNEAKTAP">
+  <rect width="512" height="512" rx="104" fill="#0A0B0D"/>
+  <!-- The game in miniature: four tiles, one a shade lighter.
+       Content sits inside the central 80% so it survives maskable cropping. -->
+  <g>
+    <rect x="98" y="98" width="150" height="150" rx="30" fill="#3D6497"/>
+    <rect x="264" y="98" width="150" height="150" rx="30" fill="#3D6497"/>
+    <rect x="98" y="264" width="150" height="150" rx="30" fill="#3D6497"/>
+    <rect x="264" y="264" width="150" height="150" rx="30" fill="#79A2D6"/>
+  </g>
+</svg>

@@ -5,20 +5,37 @@ One tile in the grid is a slightly different shade — tap it before the clock
 runs out. The grid grows, the shade gap narrows, and the whole thing disguises
 itself as a page of lecture notes in one tap.
 
-Self-contained: a single HTML file, no build step, no dependencies, no network
+`index.html` is self-contained: no build step, no dependencies, no network
 calls. It is completely separate from the app in this repo — nothing imports it
 and it imports nothing.
 
 ## Play it
 
-Open `index.html` in a browser, or serve the folder:
+Open `index.html` in a browser. That's the whole game; everything below is
+optional.
+
+To install it on a phone, serve the folder instead:
 
 ```sh
 python3 -m http.server --directory games/sneaktap 8080   # then visit localhost:8080
 ```
 
-For phone play, the file works offline once loaded — "Add to Home Screen" gives
-you a launcher with no address bar.
+Served that way it picks up three extra files and becomes an installable,
+fully offline PWA — "Add to Home Screen" gives a standalone launcher with no
+address bar:
+
+| File | Purpose |
+| --- | --- |
+| `manifest.webmanifest` | Name, standalone display, theme colours, icon |
+| `icon.svg` | App icon — the game in miniature, four tiles with one a shade lighter. Padded to survive maskable cropping |
+| `sw.js` | Caches the shell so the game runs with no network |
+
+None of them are required. Opened as a plain file the links resolve to nothing,
+the service worker registration is skipped after an explicit reachability
+check, and the game plays identically — both paths are covered by tests.
+
+Icons are SVG, which Chrome accepts; adding 192px and 512px PNGs would widen
+install support to older Android browsers.
 
 ## Modes
 
@@ -113,6 +130,25 @@ multiplier (up to ×7), and how much of the combo window was left when you tappe
 
 Simulated across skill levels, runs land around 40 seconds and end at level
 29–47 — skill shows up in the score, not in how long you sit there.
+
+## Layout
+
+Portrait stacks vertically with the board as the hero. Landscape and other
+short viewports switch to a two-column grid — instruments left, board right —
+because stacked vertically the board starved down to its 140px minimum. The
+board column is sized from the viewport rather than from its contents, since an
+`auto` column would make the board's own `100%` circular and therefore zero.
+Type scales use `vmin` rather than `vw` so nothing inflates when the viewport
+turns wide and short.
+
+## Keyboard
+
+The grid is playable without a pointer: arrow keys walk tile to tile, clamping
+at the edges rather than wrapping, and Enter or Space commits. Focus is carried
+across the round rebuild, so a run doesn't drop you back out of the grid every
+tap. Opening the hide screen or the game-over sheet marks everything underneath
+`inert` and moves focus to the control you'd want next — the resume affordance,
+or Again.
 
 ## Notes on the build
 
