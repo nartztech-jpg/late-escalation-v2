@@ -1,0 +1,1429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0B0D">
+<meta name="description" content="SNEAKTAP — a silent 30-second odd-one-out game you can hide in one tap. Built for lecture halls.">
+<title>SNEAKTAP</title>
+<style>
+/* ---------------------------------------------------------------------------
+   SNEAKTAP
+   Deliberately single-theme. The game is meant to be played one-thumbed in a
+   dark lecture hall, so a light mode would literally give the player away.
+   The one exception is the panic-hide screen, which is paper-white on purpose.
+   --------------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --hue: 205;
+
+  --void:   #0A0B0D;
+  --slate:  #14161B;
+  --line:   #23272F;
+  --chalk:  #EDF0F5;
+  --haze:   #8A93A6;
+  --signal: #FFAE3B;
+  --good:   #5FE39B;
+  --bad:    #FF5B62;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --pad: clamp(14px, 4vw, 26px);
+  --circ: 138.23; /* 2πr for r=22 */
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--void);
+  color: var(--chalk);
+  font-family: var(--sans);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* ambient glow, hue tracks the current round */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  background:
+    radial-gradient(50% 40% at 50% 22%, hsl(var(--hue) 62% 26% / 0.34), transparent 70%),
+    radial-gradient(60% 50% at 50% 108%, hsl(var(--hue) 50% 20% / 0.30), transparent 72%);
+  transition: background 700ms linear;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.8vh, 16px);
+  padding: max(var(--pad), env(safe-area-inset-top)) var(--pad)
+           max(var(--pad), env(safe-area-inset-bottom));
+}
+
+/* ---------- instrument strip ---------- */
+
+.strip {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.chip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.chip .k {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--haze);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip .v {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.chip { cursor: pointer; }
+button.chip[aria-pressed="false"] .v { color: var(--haze); }
+button.chip[aria-pressed="true"]  .v { color: var(--signal); }
+
+/* ---------- hud ---------- */
+
+.hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.readout .lbl {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--haze);
+  margin-bottom: 3px;
+}
+
+.readout .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(26px, 8vw, 40px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.readout.right { text-align: right; }
+.readout.right .num { font-size: clamp(20px, 5.5vw, 28px); color: var(--haze); }
+
+.gauge {
+  position: relative;
+  width: clamp(64px, 19vw, 84px);
+  aspect-ratio: 1;
+}
+
+.gauge svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.gauge circle {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.gauge .track { stroke: var(--line); }
+
+.gauge .prog {
+  stroke: var(--signal);
+  stroke-dasharray: var(--circ);
+  stroke-dashoffset: 0;
+}
+
+.gauge.low .prog { stroke: var(--bad); }
+.gauge.lives .prog,
+.gauge.lives .track { display: none; }
+
+.gauge .val {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: clamp(15px, 4.4vw, 19px);
+  letter-spacing: -0.02em;
+}
+
+.gauge.low .val { color: var(--bad); }
+
+.heart { color: var(--bad); }
+.heart.spent { color: var(--line); }
+
+/* ---------- combo bar ---------- */
+
+.combo {
+  position: relative;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.combo .fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, hsl(var(--hue) 60% 40%), var(--signal));
+  opacity: 0.85;
+}
+
+.combo.dropped .fill { background: var(--bad); }
+
+.combo .tag {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+/* ---------- board ---------- */
+
+.board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.grid {
+  display: grid;
+  gap: clamp(4px, 1.3vmin, 10px);
+  /* Sized off both axes so it stays square. The max() floor keeps the width
+     positive on very short viewports, where the dvh term can go negative. */
+  width: max(140px, min(100%, 96vmin, 100dvh - 320px));
+  aspect-ratio: 1;
+}
+
+.tile {
+  border: 0;
+  padding: 0;
+  border-radius: var(--tile-r, 14px);
+  background: var(--tile);
+  cursor: pointer;
+  transition: transform 90ms ease, filter 90ms ease;
+  animation: tile-in 170ms ease both;
+}
+
+.tile:active { transform: scale(0.94); }
+.tile:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.tile.odd-reveal {
+  filter: brightness(1.5);
+  box-shadow: 0 0 0 2px var(--bad) inset;
+}
+
+@keyframes tile-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.banner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+  font-weight: 800;
+  font-size: clamp(24px, 8vw, 42px);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--chalk);
+  text-shadow: 0 4px 24px rgb(0 0 0 / 0.7);
+  opacity: 0;
+}
+
+.banner.show { animation: banner 900ms ease both; }
+
+@keyframes banner {
+  0%   { opacity: 0; transform: scale(0.8); }
+  18%  { opacity: 1; transform: scale(1.04); }
+  70%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
+/* ---------- foot ---------- */
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foot .hint {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--haze);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hide-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 15px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--haze);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.hide-btn:hover { color: var(--chalk); border-color: var(--haze); }
+.hide-btn span { font-size: 14px; line-height: 1; }
+
+/* ---------- fx layer ---------- */
+
+.fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.pop {
+  position: absolute;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 17px;
+  translate: -50% -50%;
+  color: var(--good);
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.7);
+}
+
+.pop.neg { color: var(--bad); }
+
+.spark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--signal);
+  translate: -50% -50%;
+}
+
+.flash {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: var(--bad);
+  opacity: 0;
+}
+
+.flash.hit { animation: flash 260ms ease both; }
+
+@keyframes flash {
+  from { opacity: 0.22; }
+  to   { opacity: 0; }
+}
+
+#app.shake { animation: shake 260ms ease; }
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-3px); }
+  20%, 80% { transform: translateX(5px); }
+  30%, 50%, 70% { transform: translateX(-8px); }
+  40%, 60% { transform: translateX(8px); }
+}
+
+/* ---------- sheets ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  padding: max(var(--pad), env(safe-area-inset-top)) clamp(20px, 7vw, 40px)
+           max(var(--pad), env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--void) 92%, transparent);
+  backdrop-filter: blur(14px);
+  overflow-y: auto;
+}
+
+.sheet.open { display: flex; animation: sheet-in 220ms ease both; }
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+
+.wordmark {
+  margin: 6px 0 0;
+  /* Two stacked lines, so the mark can run large without clipping on narrow phones. */
+  font-size: clamp(46px, 19vw, 88px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.82;
+  text-transform: uppercase;
+}
+
+.wordmark span { display: block; }
+
+.wordmark em {
+  font-style: normal;
+  color: var(--signal);
+}
+
+.tagline {
+  margin: 12px 0 0;
+  max-width: 34ch;
+  font-size: clamp(14px, 4vw, 16px);
+  line-height: 1.5;
+  color: var(--haze);
+  text-wrap: pretty;
+}
+
+.modes { display: grid; gap: 10px; }
+
+.mode {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.mode:hover { border-color: var(--signal); transform: translateY(-1px); }
+.mode:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.mode .glyph {
+  width: 38px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: hsl(var(--hue) 45% 22%);
+  font-size: 17px;
+}
+
+/* These are spans, so they need display:block for the margin to apply at all. */
+.mode .name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mode .desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--haze);
+}
+
+.mode .pb {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  text-align: right;
+  color: var(--haze);
+}
+
+.mode .pb b {
+  display: block;
+  font-size: 17px;
+  color: var(--chalk);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.stat {
+  padding: 13px;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.stat .k {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--haze);
+}
+
+.stat .v {
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(19px, 6vw, 25px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.final {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(60px, 22vw, 104px);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 0.84;
+}
+
+.pb-flag {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--signal);
+  color: #17120A;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.row { display: flex; gap: 10px; }
+
+.btn {
+  flex: 1;
+  padding: 17px 18px;
+  border: 1px solid var(--signal);
+  border-radius: 12px;
+  background: var(--signal);
+  color: #17120A;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.btn.quiet {
+  flex: 0 1 auto;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--haze);
+}
+
+.btn.quiet:hover { color: var(--chalk); border-color: var(--haze); }
+.btn:focus-visible { outline: 2px solid var(--chalk); outline-offset: 2px; }
+
+.fineprint {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--haze);
+  text-wrap: pretty;
+}
+
+.fineprint kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--chalk);
+}
+
+/* ---------- the panic screen: a different world entirely ---------- */
+
+.notes {
+  --paper: #F7F5EF;
+  --ink:   #23211C;
+  --faint: #6E6A60;
+  --rule:  #DAD5C7;
+  --mark:  #FFF07A;
+
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  padding: max(26px, env(safe-area-inset-top)) 24px max(26px, env(safe-area-inset-bottom));
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.62;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.notes.open { display: block; }
+
+.notes .sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.notes h1 {
+  margin: 20px 0 3px;
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.notes .sub {
+  margin: 0 0 20px;
+  font-style: italic;
+  color: var(--faint);
+}
+
+.notes h2 {
+  margin: 22px 0 7px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.notes p { margin: 0 0 12px; max-width: 62ch; }
+.notes ul { margin: 0 0 14px; padding-left: 20px; max-width: 62ch; }
+.notes li { margin-bottom: 7px; }
+.notes mark { background: var(--mark); padding: 0 2px; }
+
+.notes .defbox {
+  margin: 0 0 16px;
+  padding: 13px 15px;
+  border-left: 3px solid var(--ink);
+  background: #EFEBE0;
+  max-width: 62ch;
+}
+
+.notes .defbox b { font-variant: small-caps; letter-spacing: 0.03em; }
+
+.notes .formula {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 14px;
+  margin: 0 0 16px;
+  background: #EFEBE0;
+  border: 1px solid var(--rule);
+  overflow-x: auto;
+  max-width: 62ch;
+}
+
+.notes .folio {
+  display: block;
+  margin: 30px auto 4px;
+  padding: 9px 20px;
+  border: 0;
+  background: transparent;
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--faint);
+  cursor: pointer;
+}
+
+.notes .folio:hover { color: var(--ink); }
+.notes .folio:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.notes .whisper {
+  margin: 0 0 22px;
+  font-family: var(--sans);
+  font-size: 11px;
+  text-align: center;
+  color: var(--faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="strip">
+    <div class="chip"><span class="k">streak</span><span class="v" id="uiStreak">1</span></div>
+    <div class="chip"><span class="k">reaction</span><span class="v" id="uiRt">—</span></div>
+    <div class="chip"><span class="k">best</span><span class="v" id="uiBest">0</span></div>
+    <button class="chip" id="buzzBtn" type="button" aria-pressed="true">
+      <span class="k">buzz</span><span class="v" id="uiBuzz">on</span>
+    </button>
+  </div>
+
+  <div class="hud">
+    <div class="readout">
+      <div class="lbl">score</div>
+      <div class="num" id="uiScore">0</div>
+    </div>
+
+    <div class="gauge" id="uiGauge">
+      <svg viewBox="0 0 56 56" aria-hidden="true">
+        <circle class="track" cx="28" cy="28" r="22"></circle>
+        <circle class="prog" id="uiRing" cx="28" cy="28" r="22"></circle>
+      </svg>
+      <div class="val" id="uiClock">30</div>
+    </div>
+
+    <div class="readout right">
+      <div class="lbl">level</div>
+      <div class="num" id="uiLevel">1</div>
+    </div>
+  </div>
+
+  <div class="combo" id="uiCombo">
+    <div class="fill" id="uiComboFill"></div>
+    <div class="tag" id="uiComboTag">×1.0</div>
+  </div>
+
+  <div class="board">
+    <div class="grid" id="uiGrid"></div>
+    <div class="banner" id="uiBanner"></div>
+  </div>
+
+  <div class="foot">
+    <div class="hint" id="uiHint">find the odd shade</div>
+    <button class="hide-btn" id="hideBtn" type="button">hide<span aria-hidden="true">⌄</span></button>
+  </div>
+</div>
+
+<div class="fx" id="uiFx" aria-hidden="true"></div>
+<div class="flash" id="uiFlash" aria-hidden="true"></div>
+
+<!-- start -->
+<div class="sheet open" id="startSheet">
+  <div>
+    <div class="eyebrow">silent · one thumb · 30 seconds</div>
+    <h1 class="wordmark"><span>Sneak</span><em>tap</em></h1>
+    <p class="tagline">One tile is a slightly different shade. Tap it. It gets harder every time, and the whole thing hides in one tap when someone looks over.</p>
+  </div>
+
+  <div class="modes">
+    <button class="mode" id="modeLecture" type="button">
+      <span class="glyph" aria-hidden="true">⏱</span>
+      <span>
+        <span class="name">Lecture</span>
+        <span class="desc">30 seconds on the clock. Correct taps buy you more.</span>
+      </span>
+      <span class="pb">best<b id="pbLecture">0</b></span>
+    </button>
+
+    <button class="mode" id="modePregame" type="button">
+      <span class="glyph" aria-hidden="true">◎</span>
+      <span>
+        <span class="name">Pregame</span>
+        <span class="desc">No clock, three misses. For the ten minutes before it starts.</span>
+      </span>
+      <span class="pb">best<b id="pbPregame">0</b></span>
+    </button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">day streak</div><div class="v" id="stStreak">1</div></div>
+    <div class="stat"><div class="k">runs</div><div class="v" id="stRuns">0</div></div>
+    <div class="stat"><div class="k">top combo</div><div class="v" id="stCombo">0</div></div>
+  </div>
+
+  <p class="fineprint">
+    No sound, ever. Buzz feedback where your phone supports it.
+    Hit <kbd>hide</kbd> or press <kbd>Esc</kbd> and it becomes a page of lecture notes —
+    switching apps arms it automatically, so nothing incriminating is on screen when you come back.
+  </p>
+</div>
+
+<!-- game over -->
+<div class="sheet" id="overSheet">
+  <div>
+    <div class="eyebrow" id="overReason">time</div>
+    <div class="final" id="overScore">0</div>
+    <div id="overFlag"></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">level</div><div class="v" id="overLevel">1</div></div>
+    <div class="stat"><div class="k">best combo</div><div class="v" id="overCombo">0</div></div>
+    <div class="stat"><div class="k">avg react</div><div class="v" id="overRt">—</div></div>
+  </div>
+
+  <p class="fineprint" id="overNote"></p>
+
+  <div class="row">
+    <button class="btn" id="againBtn" type="button">Again</button>
+    <button class="btn quiet" id="menuBtn" type="button">Modes</button>
+  </div>
+</div>
+
+<!-- the panic screen -->
+<div class="notes" id="notesSheet">
+  <div class="sheet-head">
+    <span>ECON 1102 · Lecture 6</span>
+    <span id="notesDate">Week 6</span>
+  </div>
+
+  <h1>Elasticity of Demand</h1>
+  <p class="sub">Responsiveness of quantity demanded to a change in price.</p>
+
+  <div class="defbox">
+    <b>Price elasticity of demand</b> — the percentage change in quantity demanded
+    divided by the percentage change in price. Reported as an absolute value.
+  </div>
+
+  <div class="formula">Ed = (%ΔQd) / (%ΔP)</div>
+
+  <h2>Reading the value</h2>
+  <ul>
+    <li><mark>Ed &gt; 1</mark> — elastic. Quantity moves proportionally more than price; revenue falls when price rises.</li>
+    <li><mark>Ed &lt; 1</mark> — inelastic. Buyers absorb the price change. Insulin, petrol, textbooks.</li>
+    <li>Ed = 1 — unit elastic. Revenue is at its maximum here.</li>
+  </ul>
+
+  <h2>What pushes elasticity up</h2>
+  <ul>
+    <li>Close substitutes exist — one coffee shop of four on the same street.</li>
+    <li>The good is a large share of income.</li>
+    <li>Longer time horizon: substitution takes time, so long-run demand is more elastic than short-run.</li>
+  </ul>
+
+  <h2>Worked example</h2>
+  <p>
+    Price rises 10%, quantity demanded falls 4%. Ed = 4/10 = 0.4, so demand is
+    inelastic and total revenue rises. Check the sign convention before the exam —
+    the marking scheme wants the absolute value.
+  </p>
+
+  <h2>Exam note</h2>
+  <p>
+    Do not confuse a movement along the curve with a shift of the curve.
+    Elasticity describes the slope behaviour, not a change in the determinants of demand.
+  </p>
+
+  <p class="whisper" id="notesWhisper"></p>
+  <button class="folio" id="folioBtn" type="button">— 6 —</button>
+</div>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+
+const ui = {
+  app: $("app"),
+  grid: $("uiGrid"),
+  banner: $("uiBanner"),
+  score: $("uiScore"),
+  level: $("uiLevel"),
+  clock: $("uiClock"),
+  gauge: $("uiGauge"),
+  ring: $("uiRing"),
+  combo: $("uiCombo"),
+  comboFill: $("uiComboFill"),
+  comboTag: $("uiComboTag"),
+  streak: $("uiStreak"),
+  rt: $("uiRt"),
+  best: $("uiBest"),
+  buzz: $("uiBuzz"),
+  hint: $("uiHint"),
+  fx: $("uiFx"),
+  flash: $("uiFlash"),
+  start: $("startSheet"),
+  over: $("overSheet"),
+  notes: $("notesSheet"),
+};
+
+const CIRC = 138.23;
+const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- persistence ---------- */
+
+const KEY = "sneaktap.v1";
+
+const save = {
+  best: { lecture: 0, pregame: 0 },
+  topCombo: 0,
+  runs: 0,
+  streak: 1,
+  lastPlayed: "",
+  buzz: true,
+};
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    const got = JSON.parse(raw);
+    Object.assign(save, got, { best: { ...save.best, ...(got.best || {}) } });
+  } catch (_) { /* first run, or storage blocked */ }
+}
+
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (_) {}
+}
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function touchStreak() {
+  const now = today();
+  if (save.lastPlayed === now) return;
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  const yst = `${y.getFullYear()}-${y.getMonth() + 1}-${y.getDate()}`;
+  save.streak = save.lastPlayed === yst ? save.streak + 1 : 1;
+  save.lastPlayed = now;
+  persist();
+}
+
+/* ---------- difficulty curve ---------- */
+
+// Tiles per side. Grows in steps so the jump is a visible event, not a creep.
+function gridFor(level) {
+  if (level < 3) return 2;
+  if (level < 7) return 3;
+  if (level < 13) return 4;
+  if (level < 21) return 5;
+  return 6;
+}
+
+// Lightness gap in percent. Wide open at first, decaying past the point where
+// the eye can reliably tell two tiles apart — the asymptote sits below the
+// floor on purpose, so the floor binds around level 40 and every run has an end.
+function deltaFor(level) {
+  return Math.max(1.6, 1.2 + 21 * Math.exp(-level / 10));
+}
+
+// How long you have before the combo lapses.
+function windowFor(level) {
+  return Math.max(950, 2600 - level * 55);
+}
+
+/* ---------- state ---------- */
+
+const S = {
+  mode: "lecture",
+  live: false,
+  odd: -1,
+  level: 0,
+  score: 0,
+  combo: 0,
+  topCombo: 0,
+  lives: 3,
+  time: 30,
+  comboLeft: 0,
+  comboMax: 1,
+  roundAt: 0,
+  resolved: false,
+  reactions: [],
+  last: 0,
+  hidden: false,
+};
+
+const START_TIME = 30;
+const TIME_GAIN = 0.45;
+const TIME_LOSS = 2.5;
+
+/* ---------- feedback ---------- */
+
+function buzz(pattern) {
+  if (!save.buzz) return;
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+function banner(text) {
+  ui.banner.textContent = text;
+  ui.banner.classList.remove("show");
+  void ui.banner.offsetWidth;
+  ui.banner.classList.add("show");
+}
+
+function pop(x, y, text, negative) {
+  const el = document.createElement("div");
+  el.className = "pop" + (negative ? " neg" : "");
+  el.textContent = text;
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+  ui.fx.appendChild(el);
+  el.animate(
+    [
+      { transform: "translate(-50%,-50%) scale(0.7)", opacity: 0 },
+      { transform: "translate(-50%,-136%) scale(1.12)", opacity: 1, offset: 0.32 },
+      { transform: "translate(-50%,-230%) scale(1)", opacity: 0 },
+    ],
+    { duration: 720, easing: "cubic-bezier(.2,.7,.3,1)" }
+  ).onfinish = () => el.remove();
+}
+
+function sparks(x, y) {
+  if (calm) return;
+  for (let i = 0; i < 9; i++) {
+    const el = document.createElement("div");
+    el.className = "spark";
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    ui.fx.appendChild(el);
+    const a = Math.random() * Math.PI * 2;
+    const d = 34 + Math.random() * 54;
+    el.animate(
+      [
+        { transform: "translate(-50%,-50%) scale(1)", opacity: 1 },
+        {
+          transform: `translate(${Math.cos(a) * d - 50}%, ${Math.sin(a) * d - 50}%) scale(0)`,
+          opacity: 0,
+        },
+      ],
+      { duration: 380 + Math.random() * 260, easing: "cubic-bezier(.1,.8,.2,1)" }
+    ).onfinish = () => el.remove();
+  }
+}
+
+function hurt() {
+  ui.flash.classList.remove("hit");
+  void ui.flash.offsetWidth;
+  ui.flash.classList.add("hit");
+  if (calm) return;
+  ui.app.classList.remove("shake");
+  void ui.app.offsetWidth;
+  ui.app.classList.add("shake");
+}
+
+/* ---------- rounds ---------- */
+
+function multiplier() {
+  return 1 + Math.min(S.combo, 24) * 0.25;
+}
+
+function newRound() {
+  const n = gridFor(S.level);
+  const delta = deltaFor(S.level);
+  const hue = 190 + ((S.level * 13) % 110);
+  const sat = 44 + (S.level % 5) * 3;
+  const baseL = 47;
+  const oddL = baseL + (Math.random() < 0.5 ? -delta : delta);
+
+  document.documentElement.style.setProperty("--hue", String(hue));
+
+  const count = n * n;
+  S.odd = Math.floor(Math.random() * count);
+  S.resolved = false;
+  S.roundAt = performance.now();
+  S.comboMax = windowFor(S.level);
+  S.comboLeft = S.comboMax;
+
+  // Tiles are rebuilt every round, so carry keyboard focus across the swap.
+  const active = document.activeElement;
+  const wasOnGrid = !!(active && active.classList && active.classList.contains("tile"));
+
+  ui.grid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  ui.grid.style.setProperty("--tile-r", Math.max(6, 22 - n * 2) + "px");
+  ui.grid.textContent = "";
+
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < count; i++) {
+    const t = document.createElement("button");
+    t.type = "button";
+    t.className = "tile";
+    t.style.setProperty("--tile", `hsl(${hue} ${sat}% ${i === S.odd ? oddL : baseL}%)`);
+    t.setAttribute("aria-label", "tile " + (i + 1));
+    t.dataset.i = String(i);
+    frag.appendChild(t);
+  }
+  ui.grid.appendChild(frag);
+
+  if (wasOnGrid) ui.grid.firstElementChild.focus();
+}
+
+function onTap(e) {
+  const tile = e.target.closest(".tile");
+  if (!tile || !S.live || S.resolved) return;
+  if (e.type === "pointerdown") e.preventDefault();
+
+  S.resolved = true;
+  const i = Number(tile.dataset.i);
+  const box = tile.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+
+  if (i === S.odd) hit(x, y);
+  else miss(x, y);
+}
+
+function hit(x, y) {
+  const rt = performance.now() - S.roundAt;
+  S.reactions.push(rt);
+  S.last = rt;
+
+  const speed = Math.max(0, Math.min(1, 1 - rt / S.comboMax));
+  const gained = Math.round((8 + S.level * 1.2) * multiplier() * (1 + speed * 0.6));
+
+  const beforeGrid = gridFor(S.level);
+  S.score += gained;
+  S.combo += 1;
+  S.level += 1;
+  S.topCombo = Math.max(S.topCombo, S.combo);
+
+  if (S.mode === "lecture") S.time = Math.min(START_TIME, S.time + TIME_GAIN);
+
+  pop(x, y, "+" + gained, false);
+  sparks(x, y);
+  buzz(8);
+
+  const afterGrid = gridFor(S.level);
+  if (afterGrid !== beforeGrid) banner(afterGrid + "×" + afterGrid);
+  else if (S.combo > 0 && S.combo % 10 === 0) banner("×" + S.combo + " streak");
+
+  ui.combo.classList.remove("dropped");
+  paintHud();
+  newRound();
+}
+
+function miss(x, y) {
+  S.combo = 0;
+  hurt();
+  buzz([16, 40, 16]);
+
+  if (S.mode === "lecture") {
+    S.time -= TIME_LOSS;
+    pop(x, y, "−" + TIME_LOSS.toFixed(1) + "s", true);
+  } else {
+    S.lives -= 1;
+    pop(x, y, "miss", true);
+  }
+
+  const oddTile = ui.grid.children[S.odd];
+  if (oddTile) oddTile.classList.add("odd-reveal");
+
+  paintHud();
+
+  if ((S.mode === "lecture" && S.time <= 0) || (S.mode === "pregame" && S.lives <= 0)) {
+    end(S.mode === "lecture" ? "time" : "out of lives");
+    return;
+  }
+
+  setTimeout(() => { if (S.live) newRound(); }, calm ? 60 : 260);
+}
+
+/* ---------- hud ---------- */
+
+function fmtRt(ms) {
+  return ms ? (ms / 1000).toFixed(2) + "s" : "—";
+}
+
+let paintedLives = -1;
+
+function paintHud() {
+  ui.score.textContent = S.score;
+  ui.level.textContent = S.level + 1;
+  ui.rt.textContent = fmtRt(S.last);
+  ui.best.textContent = save.best[S.mode] || 0;
+
+  if (S.mode === "lecture") {
+    const left = Math.max(0, S.time);
+    ui.clock.textContent = left >= 10 ? Math.ceil(left) : left.toFixed(1);
+    ui.ring.style.strokeDashoffset = String(CIRC * (1 - left / START_TIME));
+    ui.gauge.classList.toggle("low", left <= 5);
+    paintedLives = -1;
+  } else {
+    // Rebuilt only when a life is actually lost, not every frame.
+    if (paintedLives !== S.lives) {
+      paintedLives = S.lives;
+      ui.clock.innerHTML = [0, 1, 2]
+        .map((i) => `<span class="heart${i < S.lives ? "" : " spent"}">●</span>`)
+        .join("");
+    }
+    ui.gauge.classList.remove("low");
+  }
+
+  const m = multiplier();
+  ui.comboTag.textContent = "×" + m.toFixed(1) + (S.combo > 1 ? "  ·  " + S.combo : "");
+  ui.comboFill.style.transform = `scaleX(${S.live ? S.comboLeft / S.comboMax : 0})`;
+}
+
+/* ---------- loop ---------- */
+
+let raf = 0;
+let prev = 0;
+
+function tick(now) {
+  raf = requestAnimationFrame(tick);
+  const dt = Math.min(0.05, (now - prev) / 1000);
+  prev = now;
+  if (!S.live || S.hidden) return;
+
+  if (S.mode === "lecture") {
+    S.time -= dt;
+    if (S.time <= 0) {
+      S.time = 0;
+      paintHud();
+      end("time");
+      return;
+    }
+  }
+
+  S.comboLeft -= dt * 1000;
+  if (S.comboLeft <= 0) {
+    S.comboLeft = S.comboMax;
+    if (S.combo > 0) {
+      S.combo = 0;
+      ui.combo.classList.add("dropped");
+      buzz(24);
+      banner("combo lost");
+    }
+  }
+
+  paintHud();
+}
+
+/* ---------- flow ---------- */
+
+function begin(mode) {
+  touchStreak();
+
+  S.mode = mode;
+  S.live = true;
+  S.hidden = false;
+  S.score = 0;
+  S.level = 0;
+  S.combo = 0;
+  S.topCombo = 0;
+  S.lives = 3;
+  S.time = START_TIME;
+  S.reactions = [];
+  S.last = 0;
+
+  ui.start.classList.remove("open");
+  ui.over.classList.remove("open");
+  ui.notes.classList.remove("open");
+  ui.gauge.classList.toggle("lives", mode === "pregame");
+  ui.combo.classList.remove("dropped");
+  ui.hint.textContent = mode === "lecture" ? "correct taps buy time" : "three misses and it's over";
+
+  newRound();
+  paintHud();
+
+  prev = performance.now();
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
+}
+
+function end(reason) {
+  S.live = false;
+  cancelAnimationFrame(raf);
+
+  const record = S.score > (save.best[S.mode] || 0);
+  save.best[S.mode] = Math.max(save.best[S.mode] || 0, S.score);
+  save.topCombo = Math.max(save.topCombo, S.topCombo);
+  save.runs += 1;
+  persist();
+
+  const avg = S.reactions.length
+    ? S.reactions.reduce((a, b) => a + b, 0) / S.reactions.length
+    : 0;
+
+  $("overReason").textContent = reason;
+  $("overScore").textContent = S.score;
+  $("overLevel").textContent = S.level + 1;
+  $("overCombo").textContent = S.topCombo;
+  $("overRt").textContent = fmtRt(avg);
+  $("overFlag").innerHTML = record ? '<span class="pb-flag">new best</span>' : "";
+  $("overNote").textContent = record
+    ? "That is your best run yet. Quit while the lecturer still thinks you're taking notes."
+    : "Best is " + save.best[S.mode] + ". You were " + (save.best[S.mode] - S.score) + " short.";
+
+  ui.over.classList.add("open");
+  buzz([30, 60, 30, 60, 30]);
+}
+
+function toMenu() {
+  S.live = false;
+  cancelAnimationFrame(raf);
+  ui.over.classList.remove("open");
+  ui.notes.classList.remove("open");
+  refreshMenu();
+  ui.start.classList.add("open");
+}
+
+function refreshMenu() {
+  $("pbLecture").textContent = save.best.lecture || 0;
+  $("pbPregame").textContent = save.best.pregame || 0;
+  $("stStreak").textContent = save.streak;
+  $("stRuns").textContent = save.runs;
+  $("stCombo").textContent = save.topCombo;
+  ui.streak.textContent = save.streak;
+  ui.best.textContent = save.best[S.mode] || 0;
+}
+
+/* ---------- panic hide ---------- */
+
+let everHidden = false;
+
+function conceal() {
+  if (ui.notes.classList.contains("open")) return;
+  S.hidden = true;
+  $("notesWhisper").textContent = everHidden ? "" : "tap the page number to go back";
+  everHidden = true;
+  ui.notes.classList.add("open");
+  ui.notes.scrollTop = 0;
+}
+
+function reveal() {
+  ui.notes.classList.remove("open");
+  S.hidden = false;
+  if (S.live) {
+    // Don't punish the player for the seconds spent hiding.
+    S.comboLeft = S.comboMax;
+    S.roundAt = performance.now();
+    prev = performance.now();
+  }
+}
+
+/* ---------- wiring ---------- */
+
+ui.grid.addEventListener("pointerdown", onTap);
+ui.grid.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") onTap(e);
+});
+
+$("modeLecture").addEventListener("click", () => begin("lecture"));
+$("modePregame").addEventListener("click", () => begin("pregame"));
+$("againBtn").addEventListener("click", () => begin(S.mode));
+$("menuBtn").addEventListener("click", toMenu);
+$("hideBtn").addEventListener("click", conceal);
+$("folioBtn").addEventListener("click", reveal);
+
+$("buzzBtn").addEventListener("click", (e) => {
+  save.buzz = !save.buzz;
+  persist();
+  ui.buzz.textContent = save.buzz ? "on" : "off";
+  e.currentTarget.setAttribute("aria-pressed", String(save.buzz));
+  buzz(12);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    ui.notes.classList.contains("open") ? reveal() : conceal();
+  }
+});
+
+// Switching away arms the disguise, so neither a live board nor a fresh score
+// is what's on screen when you come back to it.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && (S.live || ui.over.classList.contains("open"))) conceal();
+});
+
+load();
+ui.buzz.textContent = save.buzz ? "on" : "off";
+$("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
+$("notesDate").textContent = new Date().toLocaleDateString(undefined, {
+  day: "numeric",
+  month: "short",
+});
+refreshMenu();
+paintHud();
+</script>
+</body>
+</html>
