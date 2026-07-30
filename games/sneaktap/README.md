@@ -101,10 +101,43 @@ so it covers the first paint rather than appearing after it.
 
 ## Sound
 
-Off by default, because silence is the entire premise. Turn it on for headphones
-and the feedback is synthesised with WebAudio oscillators — no audio files — with
-hit pitch climbing alongside the combo so a run audibly builds. The audio context
-is constructed inside the toggle's own click handler so browsers don't block it.
+Off by default, because silence is the entire premise, and entirely synthesised
+with WebAudio oscillators — no audio files, so the single-file promise holds.
+Nothing is constructed until you turn it on: with sound off no `AudioContext`
+exists at all, which is asserted in the tests. The context is built inside the
+toggle's own click handler, so browsers don't block it.
+
+**Two buses under one master.** Music is separable from effects because the hide
+screen has to silence it *instantly* — menu music still playing while the screen
+shows lecture notes would give the game away far more surely than the board ever
+did. `stopMusic(panic)` cuts in 80ms for hiding and for switching apps, versus a
+350ms fade for ordinary transitions.
+
+**Menu music** is a slow generative pad on a G minor pentatonic, scheduled with a
+lookahead rather than a timer per note so it doesn't drift or stutter under load.
+It runs on the start and game-over screens only, fading in 1.2s late on game over
+so the closing motif lands first. A single `syncMusic()` decides whether it
+should be running, so no caller has to reason about which state it came from.
+The knobs are all at the top of that section: `M_STEP` for tempo, `M_RHYTHM`
+for density, `M_SCALE` and `M_ROOT` for key.
+
+**Each mode has a voice.** Selecting one answers with a motif that also sets the
+key and timbre for the whole run, so modes stay distinguishable by ear while
+you're playing:
+
+| Mode | Motif | Character |
+| --- | --- | --- |
+| Lecture | C5 → G5, triangle | A bare rising fifth, over before you've registered it |
+| Pregame | G4 → B4 → D5, sine | A warm major triad with room to breathe |
+| Daily | A4 → C♯5 → E5 → A5, sine | Four bell tones climbing an octave, once a day |
+
+Correct taps then walk up a pentatonic scale from that mode's tonic — the first
+hit is the tonic itself — so a combo builds into a phrase rather than a rising
+siren, in a different key per mode.
+
+**Buttons** answer with a soft 1180Hz tick. Tiles and mode buttons are excluded
+from it, since they already have their own sounds and layering the tick on top
+muddied both.
 
 ## The hide screen
 

@@ -1310,28 +1310,209 @@ function mulberry32(a) {
 
 /* ---------- sound ----------
    Off by default and synthesised on the fly, so the file stays asset-free and
-   the game stays silent unless you ask for it. */
+   the game stays silent unless you ask for it.
+
+   Two buses under one master. Music is separable from effects because the hide
+   screen has to silence it instantly — menu music still playing while the
+   screen shows lecture notes would give the game away more surely than the
+   board ever did. */
 
 let actx = null;
+let master = null;
+let sfxBus = null;
+let musicBus = null;
+let musicFilter = null;
 
-function tone(freq, dur, type, gain) {
-  if (!save.sound) return;
-  try {
-    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-    if (actx.state === "suspended") actx.resume();
-  } catch (_) { return; }
-  const osc = actx.createOscillator();
-  const amp = actx.createGain();
+function audio() {
+  if (!save.sound) return null;
+  if (!actx) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      actx = new Ctx();
+
+      master = actx.createGain();
+      master.gain.value = 0.9;
+      master.connect(actx.destination);
+
+      sfxBus = actx.createGain();
+      sfxBus.gain.value = 1;
+      sfxBus.connect(master);
+
+      // Music runs through a lowpass so it stays behind the effects.
+      musicFilter = actx.createBiquadFilter();
+      musicFilter.type = "lowpass";
+      musicFilter.frequency.value = 1100;
+
+      musicBus = actx.createGain();
+      musicBus.gain.value = 0;
+      musicFilter.connect(musicBus);
+      musicBus.connect(master);
+    } catch (_) {
+      actx = null;
+      return null;
+    }
+  }
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
+
+// Semitone offset from a base frequency.
+function step(base, semitones) {
+  return base * Math.pow(2, semitones / 12);
+}
+
+function tone(freq, dur, type, gain, when) {
+  const a = audio();
+  if (!a) return;
+  const t = when || a.currentTime;
+  const osc = a.createOscillator();
+  const amp = a.createGain();
   osc.type = type || "sine";
   osc.frequency.value = freq;
   osc.connect(amp);
-  amp.connect(actx.destination);
-  const t = actx.currentTime;
+  amp.connect(sfxBus);
   amp.gain.setValueAtTime(0.0001, t);
   amp.gain.linearRampToValueAtTime(gain, t + 0.008);
   amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.start(t);
   osc.stop(t + dur + 0.02);
+}
+
+function uiClick() {
+  tone(1180, 0.035, "sine", 0.028);
+}
+
+/* ---------- each mode has its own voice ----------
+   The motif you hear on selection also sets the key and timbre the whole run
+   is played in, so the modes stay distinguishable by ear once you're playing.
+   Motif entries are [delay ms, semitones above tonic, seconds]. */
+
+const VOICES = {
+  // Urgent: a bare rising fifth, over before you've registered it.
+  lecture: {
+    tonic: 523.25,
+    wave: "triangle",
+    motif: [[0, 0, 0.15], [85, 7, 0.28]],
+  },
+  // Unhurried: a warm major triad, room to breathe.
+  pregame: {
+    tonic: 392.0,
+    wave: "sine",
+    motif: [[0, 0, 0.22], [125, 4, 0.22], [250, 7, 0.44]],
+  },
+  // Ceremonial: four bell tones climbing an octave, once a day.
+  daily: {
+    tonic: 440.0,
+    wave: "sine",
+    motif: [[0, 0, 0.5], [110, 4, 0.5], [220, 7, 0.5], [330, 12, 0.85]],
+  },
+};
+
+function modeFanfare(mode) {
+  const a = audio();
+  const v = VOICES[mode];
+  if (!a || !v) return;
+  for (const [ms, semi, dur] of v.motif) {
+    tone(step(v.tonic, semi), dur, v.wave, 0.055, a.currentTime + ms / 1000);
+  }
+}
+
+// Correct taps walk up a pentatonic scale from the mode's tonic, so a combo
+// builds into a phrase rather than a rising siren.
+const PENTA = [0, 2, 4, 7, 9];
+
+function hitPitch(combo) {
+  const i = Math.min(combo, 12);
+  return step(S.tonic, PENTA[i % 5] + 12 * Math.floor(i / 5));
+}
+
+/* ---------- menu music ----------
+   A slow generative pad on a minor pentatonic. Scheduled with a lookahead
+   rather than timers per note, so it doesn't drift or stutter under load. */
+
+const M_ROOT = 196.0;
+const M_SCALE = [0, 3, 5, 7, 10];
+const M_STEP = 0.42;
+const M_RHYTHM = [1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0];
+const M_DEGREE = [0, 2, 4, 1, 3, 0, 2, 4, 1, 3, 2, 0, 4, 1, 3, 2];
+const M_OCTAVE = [0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1];
+
+const music = { on: false, timer: 0, next: 0, step: 0 };
+
+function musicNote(time, freq, dur, gain, type) {
+  const osc = actx.createOscillator();
+  const amp = actx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  osc.connect(amp);
+  amp.connect(musicFilter);
+  amp.gain.setValueAtTime(0.0001, time);
+  amp.gain.linearRampToValueAtTime(gain, time + 0.25); // slow attack: a pad, not a pluck
+  amp.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  osc.start(time);
+  osc.stop(time + dur + 0.05);
+}
+
+function musicPump() {
+  const a = audio();
+  if (!a || !music.on) return;
+  while (music.next < a.currentTime + 0.25) {
+    const i = music.step % M_RHYTHM.length;
+    if (M_RHYTHM[i]) {
+      const semi = M_SCALE[M_DEGREE[i]] + 12 * (1 + M_OCTAVE[i]);
+      musicNote(music.next, step(M_ROOT, semi), 1.5, 0.05, "triangle");
+    }
+    if (i === 0) musicNote(music.next, M_ROOT / 2, 3.2, 0.045, "sine"); // bass every bar
+    music.next += M_STEP;
+    music.step += 1;
+  }
+}
+
+function startMusic(delay) {
+  const a = audio();
+  if (!a) return;
+  if (!music.on) {
+    music.on = true;
+    music.next = a.currentTime + 0.08;
+    music.timer = setInterval(musicPump, 90);
+    musicPump();
+  }
+  const g = musicBus.gain;
+  g.cancelScheduledValues(a.currentTime);
+  g.setValueAtTime(g.value, a.currentTime);
+  g.linearRampToValueAtTime(0.9, a.currentTime + (delay || 0) + 1.6);
+}
+
+// `panic` cuts it in 80ms — used by the hide screen, where a graceful fade is
+// exactly the wrong behaviour.
+function stopMusic(panic) {
+  clearInterval(music.timer);
+  music.timer = 0;
+  music.on = false;
+  if (!actx || !musicBus) return;
+  const g = musicBus.gain;
+  const t = actx.currentTime;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(g.value, t);
+  g.linearRampToValueAtTime(0, t + (panic ? 0.08 : 0.35));
+}
+
+function musicWanted() {
+  return (
+    save.sound &&
+    booted &&
+    !S.hidden &&
+    !document.hidden &&
+    (ui.start.classList.contains("open") || ui.over.classList.contains("open"))
+  );
+}
+
+// One place decides whether music should be running, so no caller has to
+// reason about the combination of states it was entered from.
+function syncMusic(delay) {
+  if (musicWanted()) startMusic(delay);
+  else stopMusic();
 }
 
 /* ---------- difficulty curve ---------- */
@@ -1381,6 +1562,8 @@ const S = {
   record: false,
   hidden: false,
   maxSide: 2,
+  tonic: 523.25,
+  wave: "triangle",
   // The current round's colours, kept so a miss can repaint the odd tile.
   hue: 205,
   sat: 44,
@@ -1563,8 +1746,8 @@ function hit(x, y) {
   pop(x, y, "+" + gained, false);
   sparks(x, y);
   buzz(8);
-  // Pitch climbs with the combo, so the run audibly builds.
-  tone(520 + Math.min(S.combo, 22) * 26, 0.09, "triangle", 0.05);
+  // Walks the mode's scale, so the run audibly builds into a phrase.
+  tone(hitPitch(S.combo - 1), 0.09, S.wave, 0.05);
 
   const afterGrid = gridFor(S.level);
   if (afterGrid !== beforeGrid) {
@@ -1732,6 +1915,8 @@ function begin(mode) {
 
   S.mode = mode;
   S.timed = mode !== "pregame";
+  S.tonic = (VOICES[mode] || VOICES.lecture).tonic;
+  S.wave = (VOICES[mode] || VOICES.lecture).wave;
   // Daily deals from a seed derived from the date, so the sequence is identical
   // for everyone playing today and reproducible on a retry.
   S.rng = mode === "daily" ? mulberry32(hashStr("sneaktap-" + today())) : Math.random;
@@ -1768,6 +1953,9 @@ function begin(mode) {
 
   // Nobody has explained the rules to a first-time player yet.
   if (save.runs === 0) banner("tap the odd one");
+
+  stopMusic();
+  modeFanfare(mode);
 
   prev = performance.now();
   cancelAnimationFrame(raf);
@@ -1816,6 +2004,7 @@ function end(reason) {
   focusFirst($("againBtn"));
   buzz([30, 60, 30, 60, 30]);
   [0, 130, 260].forEach((d, i) => setTimeout(() => tone(420 - i * 90, 0.2, "sine", 0.05), d));
+  syncMusic(1.2);
 }
 
 /* ---------- sharing ---------- */
@@ -1991,6 +2180,7 @@ function toMenu() {
   ui.start.classList.add("open");
   updateInert();
   focusFirst($("modeLecture"));
+  syncMusic();
 }
 
 function refreshMenu() {
@@ -2023,6 +2213,7 @@ function conceal() {
   ui.notes.classList.add("open");
   ui.notes.scrollTop = 0;
   updateInert();
+  stopMusic(true);
   // The resume control is the first thing a keyboard user should reach.
   focusFirst($("folioBtn"));
 }
@@ -2031,6 +2222,7 @@ function reveal() {
   ui.notes.classList.remove("open");
   updateInert();
   S.hidden = false;
+  syncMusic();
   if (S.live) {
     // Don't punish the player for the seconds spent hiding.
     S.comboLeft = S.comboMax;
@@ -2097,7 +2289,12 @@ $("soundBtn").addEventListener("click", (e) => {
   $("uiSound").textContent = save.sound ? "on" : "off";
   e.currentTarget.setAttribute("aria-pressed", String(save.sound));
   // Built on this gesture, so the audio context starts unblocked.
-  if (save.sound) tone(760, 0.1, "triangle", 0.05);
+  if (save.sound) {
+    tone(760, 0.1, "triangle", 0.05);
+    syncMusic(0.3);
+  } else {
+    stopMusic(true);
+  }
 });
 
 document.addEventListener("keydown", (e) => {
@@ -2111,7 +2308,21 @@ document.addEventListener("keydown", (e) => {
 // is what's on screen when you come back to it.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && (S.live || ui.over.classList.contains("open"))) conceal();
+  if (document.hidden) stopMusic(true);
+  else syncMusic();
 });
+
+// Button feedback. Tiles carry their own hit and miss sounds, and the mode
+// buttons answer with their signature motif, so both are left alone here.
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    const btn = e.target.closest("button");
+    if (!btn || btn.closest("#uiGrid") || btn.classList.contains("mode")) return;
+    uiClick();
+  },
+  true
+);
 
 /* ---------- boot ----------
    There are no assets to fetch, so this reports real readiness steps rather
@@ -2120,7 +2331,7 @@ document.addEventListener("visibilitychange", () => {
 
 let booted = false;
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 
 function applySettings() {
   $("ver").textContent = "v" + VERSION;
@@ -2159,6 +2370,7 @@ function handOver() {
   if (boot.classList.contains("gone")) return;
   boot.classList.add("gone");
   updateInert();
+  syncMusic();
   // Number the start sheet's children so they rise in sequence.
   if (!calm) {
     [...ui.start.children].forEach((el, i) => el.style.setProperty("--i", String(i)));
