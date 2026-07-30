@@ -3,8 +3,16 @@
    http(s) registers this and the game then works with no network at all.
    Bump CACHE on release so clients pick the new shell up. */
 
-const CACHE = "sneaktap-v1";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "sneaktap-v2";
+const SHELL = [
+  "./",
+  "./index.html",
+  "./manifest.webmanifest",
+  "./icon.svg",
+  "./icon-180.png",
+  "./icon-192.png",
+  "./icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -26,16 +26,29 @@ address bar:
 
 | File | Purpose |
 | --- | --- |
-| `manifest.webmanifest` | Name, standalone display, theme colours, icon |
-| `icon.svg` | App icon — the game in miniature, four tiles with one a shade lighter. Padded to survive maskable cropping |
+| `manifest.webmanifest` | Name, standalone display, theme colours, icons |
+| `icon.svg` | Favicon — the game in miniature, four tiles with one a shade lighter |
+| `icon-180.png` | iOS home screen. **Must be PNG**: iOS ignores an SVG `apple-touch-icon` and falls back to a screenshot of the page |
+| `icon-192.png`, `icon-512.png` | Android install and splash, declared `any` and `maskable` |
 | `sw.js` | Caches the shell so the game runs with no network |
 
 None of them are required. Opened as a plain file the links resolve to nothing,
 the service worker registration is skipped after an explicit reachability
 check, and the game plays identically — both paths are covered by tests.
 
-Icons are SVG, which Chrome accepts; adding 192px and 512px PNGs would widen
-install support to older Android browsers.
+The PNGs are rendered from the same artwork as `icon.svg`, laid out full-bleed
+with the tiles inside the inscribed square of the maskable safe circle
+(111–401 of 512) so no corner is cropped away. Bump `CACHE` in `sw.js` whenever
+any of these change, or installed clients keep serving the old shell.
+
+### What this is not
+
+This is a progressive web app, not a native build. It installs to the home
+screen, runs offline and standalone with no address bar, and needs no store
+review — which is the whole distribution story for a game people share by
+link. Getting it into the App Store or Play Store means wrapping it with
+something like Capacitor or PWABuilder, which needs Xcode and the Android SDK
+and a signing identity, none of which are verifiable from here.
 
 ## Modes
 
@@ -173,6 +186,46 @@ board column is sized from the viewport rather than from its contents, since an
 `auto` column would make the board's own `100%` circular and therefore zero.
 Type scales use `vmin` rather than `vw` so nothing inflates when the viewport
 turns wide and short.
+
+The board itself is a **size container**, so the grid is simply the largest
+square that fits the space actually available (`min(100cqw, 100cqh, 560px)`)
+rather than the viewport minus a guess at the chrome. That guess was costing
+real estate on small phones — a 320×568 handset went from a 248px board with
+38px tiles to a 292px board with 45px tiles, crossing back over the 44px touch
+target minimum. The old viewport arithmetic is kept above it as a fallback for
+browsers without container queries. The 560px ceiling stops tablets from
+getting comically large tiles.
+
+## Mobile
+
+Tested across a device matrix — iPhone SE through 15 Pro Max, Galaxy S8,
+Pixel 7, an open Galaxy Fold, an iPad and a 320px legacy handset — in both
+orientations. Every one fits with zero overflow, and every control outside the
+board is at least 44px.
+
+- **Safe areas** are honoured on all four edges. Horizontal insets matter more
+  than they look: in landscape the notch sits directly beside the board.
+- **`touch-action`** is set per control, not on `body` — it doesn't inherit, so
+  a body-level rule left every tile at `auto` and double-tap zoom stayed live on
+  the board, which is exactly where taps come fastest.
+- **Long-press** over the board is suppressed, along with the iOS text callout.
+- **Overscroll** is pinned so pull-to-refresh can't reload a live run, and the
+  scrollable overlays contain their own bounce.
+- **`100dvh` has a `100vh` fallback** for iOS 15.3 and earlier.
+- **Haptics are reported honestly.** iOS Safari has no Vibration API at all, so
+  rather than showing "buzz: on" and doing nothing, the toggle reads `n/a` and
+  disables itself where the API is missing.
+- **Performance** on a 6× CPU throttle: a full 6×6 rebuild takes 1.4ms median
+  (3ms worst), frame pacing holds at 16.2ms median, and tap-to-score is 160ms.
+
+One deliberate compromise: at 6×6 on a 320px-wide phone the tiles are 45px,
+just over the minimum. Shrinking the grid on small screens would have been
+easy but would break Daily — everyone has to get the same board for the score
+to mean anything.
+
+Pinch-zoom is intentionally left enabled. Blocking it would suit a game, but it
+is the accessibility cost that isn't worth paying, and the layout is fluid
+enough to survive it.
 
 ## Keyboard
 

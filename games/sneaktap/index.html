@@ -14,7 +14,7 @@
      resolve to nothing harmful when the file is opened directly. -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sneaktap">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -29,6 +29,10 @@
    --------------------------------------------------------------------------- */
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* touch-action does not inherit, so setting it on body leaves every control at
+   `auto` — double-tap zoom stayed live on the board, where taps are fastest. */
+button { touch-action: manipulation; }
 
 :root {
   --hue: 205;
@@ -64,6 +68,7 @@ body {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   touch-action: manipulation;
 }
 
@@ -83,12 +88,16 @@ body::before {
 #app {
   position: relative;
   z-index: 1;
+  height: 100vh;   /* iOS 15.3 and earlier */
   height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: clamp(8px, 1.8vh, 16px);
-  padding: max(var(--pad), env(safe-area-inset-top)) var(--pad)
-           max(var(--pad), env(safe-area-inset-bottom));
+  /* Horizontal insets matter in landscape, where a notch sits beside the board. */
+  padding: max(var(--pad), env(safe-area-inset-top))
+           max(var(--pad), env(safe-area-inset-right))
+           max(var(--pad), env(safe-area-inset-bottom))
+           max(var(--pad), env(safe-area-inset-left));
 }
 
 /* ---------- instrument strip ---------- */
@@ -259,14 +268,22 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   display: grid;
   place-items: center;
   overflow: hidden;
+  /* Lets the board measure itself, so the square below needs no guess about
+     how tall the surrounding chrome is. */
+  container-type: size;
 }
 
 .grid {
   display: grid;
   gap: clamp(4px, 1.3vmin, 10px);
-  /* Sized off both axes so it stays square. The max() floor keeps the width
-     positive on very short viewports, where the dvh term can go negative. */
-  width: max(140px, min(100%, 96vmin, 100dvh - 320px));
+  /* Fallback for browsers without container queries: subtract an estimate of
+     the chrome. The floor keeps the width positive on very short viewports,
+     where the dvh term would otherwise go negative. */
+  width: max(140px, min(100%, 96vmin, 100vh - 320px));
+  width: max(140px, min(100%, 96vmin, 100dvh - 320px, 560px));
+  /* The real rule: the largest square that fits the space the board actually
+     has. Capped so tablets don't get comically large tiles. */
+  width: min(100cqw, 100cqh, 560px);
   aspect-ratio: 1;
 }
 
@@ -353,8 +370,10 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   flex: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
-  padding: 10px 15px;
+  min-height: 44px;   /* thumb target */
+  padding: 10px 17px;
   background: transparent;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -379,7 +398,8 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
     display: grid;
     /* The board column is sized from the viewport, not from its contents. An
        auto column would make .grid's own 100% circular, and therefore zero. */
-    grid-template-columns: minmax(0, 1fr) min(48vw, 100dvh - 56px);
+    grid-template-columns: minmax(0, 1fr) min(48vw, 100vh - 56px);
+    grid-template-columns: minmax(0, 1fr) min(48vw, 100dvh - 56px, 560px);
     grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
       "strip board"
@@ -400,11 +420,12 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
     align-self: end;
   }
 
-  /* The column above is already the right size, so just fill it. Note that a
-     plain subtraction is required in these expressions — multiplying
-     var(--pad) makes a nested clamp() the parser rejects, which silently
-     drops the whole declaration. */
-  .grid { width: 100%; }
+  /* Same self-measuring rule as portrait; the fallback fills the column.
+     Note that a plain subtraction is required in these expressions —
+     multiplying var(--pad) makes a nested clamp() the parser rejects, which
+     silently drops the whole declaration. */
+  .grid { width: min(100%, 560px); }
+  .grid { width: min(100cqw, 100cqh, 560px); }
 
   .sheet { justify-content: flex-start; }
   .wordmark { font-size: clamp(34px, 11vmin, 54px); }
@@ -484,11 +505,14 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   flex-direction: column;
   justify-content: center;
   gap: 22px;
-  padding: max(var(--pad), env(safe-area-inset-top)) clamp(20px, 7vw, 40px)
-           max(var(--pad), env(safe-area-inset-bottom));
+  padding: max(var(--pad), env(safe-area-inset-top))
+           max(clamp(20px, 7vw, 40px), env(safe-area-inset-right))
+           max(var(--pad), env(safe-area-inset-bottom))
+           max(clamp(20px, 7vw, 40px), env(safe-area-inset-left));
   background: color-mix(in srgb, var(--void) 92%, transparent);
   backdrop-filter: blur(14px);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sheet.open { display: flex; animation: sheet-in 220ms ease both; }
@@ -615,6 +639,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-height: 48px;
   padding: 13px 14px;
   background: var(--slate);
   border: 1px solid var(--line);
@@ -761,7 +786,10 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   flex-direction: column;
   justify-content: center;
   gap: 26px;
-  padding: clamp(20px, 7vw, 40px);
+  padding: max(clamp(20px, 7vw, 40px), env(safe-area-inset-top))
+           max(clamp(20px, 7vw, 40px), env(safe-area-inset-right))
+           max(clamp(20px, 7vw, 40px), env(safe-area-inset-bottom))
+           max(clamp(20px, 7vw, 40px), env(safe-area-inset-left));
   background: var(--void);
 }
 
@@ -880,6 +908,8 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   font-size: 15px;
   line-height: 1.62;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -954,7 +984,8 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 .notes .folio {
   display: block;
   margin: 30px auto 4px;
-  padding: 9px 20px;
+  min-height: 44px;
+  padding: 9px 24px;
   border: 0;
   background: transparent;
   font-family: var(--serif);
@@ -1023,7 +1054,7 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
   <div class="strip">
     <div class="chip"><span class="k">streak</span><span class="v" id="uiStreak">1</span></div>
     <div class="chip"><span class="k">reaction</span><span class="v" id="uiRt">—</span></div>
-    <div class="chip"><span class="k">shade gap</span><span class="v" id="uiGap">—</span></div>
+    <div class="chip"><span class="k">gap</span><span class="v" id="uiGap">—</span></div>
     <div class="chip"><span class="k">best</span><span class="v" id="uiBest">0</span></div>
   </div>
 
@@ -1120,9 +1151,10 @@ button.chip[aria-pressed="true"]  .v { color: var(--signal); }
 
   <p class="fineprint">
     Sound is off by default — the whole point is that this is silent. Turn it on
-    for headphones. Hit <kbd>hide</kbd> or press <kbd>Esc</kbd> and the board becomes a page of
-    lecture notes; switching apps arms it automatically, so nothing incriminating is
-    on screen when you come back.
+    for headphones; on iPhone it follows your ringer switch. Buzz needs a device
+    that supports vibration, so it's unavailable on iOS. Hit <kbd>hide</kbd> or press
+    <kbd>Esc</kbd> and the board becomes a page of lecture notes; switching apps arms it
+    automatically, so nothing incriminating is on screen when you come back.
   </p>
 
   <div class="ver" id="ver"></div>
@@ -2234,6 +2266,7 @@ function reveal() {
 /* ---------- wiring ---------- */
 
 ui.grid.addEventListener("pointerdown", onTap);
+ui.grid.addEventListener("contextmenu", (e) => e.preventDefault());
 
 // Keyboard play. Tabbing through 36 buttons is not play, so arrows walk the
 // grid and Enter or Space commits.
@@ -2331,12 +2364,24 @@ document.addEventListener(
 
 let booted = false;
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
+
+// iOS Safari has no Vibration API at all, so a "buzz: on" toggle there would
+// simply be a lie. Report what the device can actually do.
+const CAN_BUZZ = typeof navigator.vibrate === "function";
 
 function applySettings() {
   $("ver").textContent = "v" + VERSION;
-  $("uiBuzz").textContent = save.buzz ? "on" : "off";
-  $("buzzBtn").setAttribute("aria-pressed", String(save.buzz));
+  const buzzBtn = $("buzzBtn");
+  if (CAN_BUZZ) {
+    $("uiBuzz").textContent = save.buzz ? "on" : "off";
+    buzzBtn.setAttribute("aria-pressed", String(save.buzz));
+  } else {
+    $("uiBuzz").textContent = "n/a";
+    buzzBtn.setAttribute("aria-pressed", "false");
+    buzzBtn.disabled = true;
+    buzzBtn.title = "This device has no vibration support";
+  }
   $("uiSound").textContent = save.sound ? "on" : "off";
   $("soundBtn").setAttribute("aria-pressed", String(save.sound));
   $("notesDate").textContent = new Date().toLocaleDateString(undefined, {
